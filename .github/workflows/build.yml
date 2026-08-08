@@ -15,7 +15,15 @@ jobs:
         run: |
           make FINALPACKAGE=1
           mkdir -p shared_out
-          cp .theos/obj/BumbleLock.dylib shared_out/BumbleLock.dylib
+          
+          # Universal root path check to catch the binary automatically
+          if [ -f ".theos/obj/BumbleLock.dylib" ]; then
+            cp .theos/obj/BumbleLock.dylib shared_out/BumbleLock.dylib
+          elif [ -f ".theos/obj/debug/BumbleLock.dylib" ]; then
+            cp .theos/obj/debug/BumbleLock.dylib shared_out/BumbleLock.dylib
+          else
+            find .theos/obj/ -name "BumbleLock.dylib" -exec cp {} shared_out/BumbleLock.dylib \;
+          fi
 
       - name: Dispatch Package
         uses: actions/upload-artifact@v4
