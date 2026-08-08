@@ -14,7 +14,7 @@ static UIView *blankOverlay = nil;
     dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
         
-        // Safe check for the active window container on iOS 16
+        // Dynamic key window check optimized for modern iOS 16 multitasking layouts
         if (@available(iOS 13.0, *)) {
             for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
                 if (scene.activationState == UISceneActivationStateForegroundActive) {
@@ -90,7 +90,7 @@ static UIView *blankOverlay = nil;
 @end
 
 // ============================================================================
-// RUNTIME COMPILER ENTRY
+// RUNTIME ENTRY
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
@@ -103,7 +103,7 @@ static void init(void) {
             [BumbleLockManager authenticateUser];
         }];
         
-        // Trigger verification whenever re-entering from the background multitasking view
+        // Trigger verification whenever re-entering from background multitasking views
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
