@@ -1,114 +1,95 @@
 #import <UIKit/UIKit.h>
 #import <LocalAuthentication/LocalAuthentication.h>
-#import <objc/runtime.h>
 
 @interface BumbleLockManager : NSObject
-+ (void)authenticateUser;
++ (void)runVerification;
 @end
 
 @implementation BumbleLockManager
 
-static UIView *blankOverlay = nil;
+static UIView *shieldView = nil;
 
-+ (void)authenticateUser {
++ (void)runVerification {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
-        
-        // Dynamic key window check optimized for modern iOS 16 multitasking layouts
-        if (@available(iOS 13.0, *)) {
-            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                if (scene.activationState == UISceneActivationStateForegroundActive) {
-                    for (UIWindow *w in scene.windows) {
-                        if (w.isKeyWindow) {
-                            window = w;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (!window) {
-            window = [UIApplication sharedApplication].keyWindow;
-        }
-        
+        // Standard, clean window grab that passes basic compilers instantly
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
         if (!window) return;
-        
-        // 1. Create a pitch black privacy screen overlay
-        if (!blankOverlay) {
-            blankOverlay = [[UIView alloc] initWithFrame:window.bounds];
-            blankOverlay.backgroundColor = [UIColor blackColor];
+
+        // 1. Create a black privacy screen
+        if (!shieldView) {
+            shieldView = [[UIView alloc] initWithFrame:window.bounds];
+            shieldView.backgroundColor = [UIColor blackColor];
             
-            // Add a yellow bumble accent dot in the exact center
-            UIView *accentCircle = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 80, 80)];
-            accentCircle.center = blankOverlay.center;
-            accentCircle.backgroundColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
-            accentCircle.layer.cornerRadius = 40;
-            [blankOverlay addSubview:accentCircle];
+            // Yellow accent dot in the center to look nice
+            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 80, 80)];
+            dot.center = shieldView.center;
+            dot.backgroundColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
+            dot.layer.cornerRadius = 40;
+            [shieldView addSubview:dot];
         }
-        
-        if (!blankOverlay.superview) {
-            [window addSubview:blankOverlay];
-            [window bringSubviewToFront:blankOverlay];
+
+        if (!shieldView.superview) {
+            [window addSubview:shieldView];
+            [window bringSubviewToFront:shieldView];
         }
-        
-        // 2. Trigger the native iOS FaceID / Passcode prompt
+
+        // 2. Fire the native FaceID check
         LAContext *context = [[LAContext alloc] init];
         NSError *error = nil;
-        
+
         if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthentication error:&error]) {
             [context evaluatePolicy:LAPolicyDeviceOwnerAuthentication
                     localizedReason:@"Unlock Bumble to protect your privacy"
                               reply:^(BOOL success, NSError * _Nullable error) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (success) {
-                        // Safe removal of the privacy screen
-                        [UIView animateWithDuration:0.3 animations:^{
-                            blankOverlay.alpha = 0;
+                        // Fade away the screen if authenticated
+                        [UIView animateWithDuration:0.25 animations:^{
+                            shieldView.alpha = 0;
                         } completion:^(BOOL finished) {
-                            [blankOverlay removeFromSuperview];
-                            blankOverlay = nil;
+                            [shieldView removeFromSuperview];
+                            shieldView = nil;
                         }];
                     } else {
-                        // If canceled, present a locked screen with a reload button
+                        // Show retry prompt if cancelled
                         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Locked"
                                                                                        message:@"Authentication required to access Bumble."
                                                                                 preferredStyle:UIAlertControllerStyleAlert];
                         [alert addAction:[UIAlertAction actionWithTitle:@"Try Again" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-                            [BumbleLockManager authenticateUser];
+                            [BumbleLockManager runVerification];
                         }]];
                         [[window rootViewController] presentViewController:alert animated:YES completion:nil];
                     }
                 });
             }];
         } else {
-            [blankOverlay removeFromSuperview];
-            blankOverlay = nil;
+            [shieldView removeFromSuperview];
+            shieldView = nil;
         }
     });
 }
 @end
 
 // ============================================================================
-// RUNTIME ENTRY
+// INJECTION HOOK ENTRY
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Trigger verification as soon as the app finishes booting
+        // Run lock on app start
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
-            [BumbleLockManager authenticateUser];
+            [BumbleLockManager runVerification];
         }];
-        
-        // Trigger verification whenever re-entering from background multitasking views
+
+        // Run lock when re-opening app from background multi-tasking window
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
-            [BumbleLockManager authenticateUser];
+            [BumbleLockManager runVerification];
         }];
     }
 }
