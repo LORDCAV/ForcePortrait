@@ -3,7 +3,7 @@ on: [workflow_dispatch]
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -11,7 +11,7 @@ jobs:
       - name: Setup Theos Build Environment
         uses: beerpiss/theos-action@v1
         with:
-          theos-sdks: https://github.com
+          theos-sdks: https://github.com/theos/sdks
 
       - name: Build Tweak
         run: |
