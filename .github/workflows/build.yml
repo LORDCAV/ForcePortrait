@@ -11,7 +11,7 @@ jobs:
       - name: Setup Theos Build Environment
         uses: beerpiss/theos-action@v1
         with:
-          theos-sdks: https://github.com/theos/sdks
+          theos-sdks: https://github.com
 
       - name: Build Tweak
         run: |
@@ -20,7 +20,7 @@ jobs:
       - name: Locate and Rename Dylib
         run: |
           mkdir -p output
-          cp .theos/obj/debug/BumbleLock.dylib output/BumbleLock.dylib
+          find .theos/obj -name "BumbleLock.dylib" -exec cp {} output/BumbleLock.dylib \;
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
