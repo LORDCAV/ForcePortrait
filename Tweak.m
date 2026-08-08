@@ -1,45 +1,82 @@
 #import <UIKit/UIKit.h>
+#import <LocalAuthentication/LocalAuthentication.h>
 #import <objc/runtime.h>
-#import <dlfcn.h>
 
-// Override UIKit responses
-UIInterfaceOrientationMask custom_supportedInterfaceOrientations(id self, SEL _cmd) {
-    return UIInterfaceOrientationMaskPortrait;
-}
+@interface BumbleLockManager : NSObject
++ (void)authenticateUser;
+@end
 
-UIInterfaceOrientation custom_preferredInterfaceOrientationForPresentation(id self, SEL _cmd) {
-    return UIInterfaceOrientationPortrait;
-}
+@implementation BumbleLockManager
 
-BOOL custom_shouldAutorotate(id self, SEL _cmd) {
-    return YES;
-}
+static UIView *blankOverlay = nil;
 
-// Force engine configuration requests to yield portrait values (Value 1 = Portrait)
-int custom_UnityGetTargetDesiredOrientation() {
-    return 1; 
++ (void)authenticateUser {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        if (!window) return;
+        
+        if (!blankOverlay) {
+            blankOverlay = [[UIView alloc] initWithFrame:window.bounds];
+            blankOverlay.backgroundColor = [UIColor blackColor];
+            
+            UIView *accentCircle = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 80, 80)];
+            accentCircle.center = blankOverlay.center;
+            accentCircle.backgroundColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
+            accentCircle.layer.cornerRadius = 40;
+            [blankOverlay addSubview:accentCircle];
+        }
+        
+        [window addSubview:blankOverlay];
+        [window bringSubviewToFront:blankOverlay];
+        
+        LAContext *context = [[LAContext alloc] init];
+        NSError *error = nil;
+        
+        if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthentication error:&error]) {
+            [context evaluatePolicy:LAPolicyDeviceOwnerAuthentication
+                    localizedReason:@"Unlock Bumble to protect your privacy"
+                              reply:^(BOOL success, NSError * _Nullable error) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (success) {
+                        [UIView animateWithDuration:0.3 animations:^{
+                            blankOverlay.alpha = 0;
+                        } completion:^(BOOL finished) {
+                            [blankOverlay removeFromSuperview];
+                            blankOverlay = nil;
+                        }];
+                    } else {
+                        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Locked"
+                                                                                       message:@"Authentication required to access Bumble."
+                                                                                preferredStyle:UIAlertControllerStyleAlert];
+                        [alert addAction:[UIAlertAction actionWithTitle:@"Try Again" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+                            [BumbleLockManager authenticateUser];
+                        }]];
+                        [[window rootViewController] presentViewController:alert animated:YES completion:nil];
+                    }
+                });
+            }];
+        } else {
+            [blankOverlay removeFromSuperview];
+        }
+    });
 }
+@end
 
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // 1. Hook the standard iOS base views
-        Class class = [UIViewController class];
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification * _Nonnull note) {
+            [BumbleLockManager authenticateUser];
+        }];
         
-        Method method1 = class_getInstanceMethod(class, @selector(supportedInterfaceOrientations));
-        class_replaceMethod(class, @selector(supportedInterfaceOrientations), (IMP)custom_supportedInterfaceOrientations, method_getTypeEncoding(method1));
-        
-        Method method2 = class_getInstanceMethod(class, @selector(preferredInterfaceOrientationForPresentation));
-        class_replaceMethod(class, @selector(preferredInterfaceOrientationForPresentation), (IMP)custom_preferredInterfaceOrientationForPresentation, method_getTypeEncoding(method2));
-        
-        Method method3 = class_getInstanceMethod(class, @selector(shouldAutorotate));
-        class_replaceMethod(class, @selector(shouldAutorotate), (IMP)custom_shouldAutorotate, method_getTypeEncoding(method3));
-        
-        // 2. Intercept Unity's specific internal C-function mapping 
-        void *unity_func = dlsym(RTLD_DEFAULT, "UnityGetTargetDesiredOrientation");
-        if (unity_func != NULL) {
-            // Rebind the function pointer to force return values internally
-            class_replaceMethod(class, NSSelectorFromString(@"updateOrientation:"), (IMP)custom_UnityGetTargetDesiredOrientation, "v@:i");
-        }
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification * _Nonnull note) {
+            [BumbleLockManager authenticateUser];
+        }];
     }
 }
