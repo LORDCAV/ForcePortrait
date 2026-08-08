@@ -1,8 +1,0 @@
-Package: com.lordcav.bumblelock
-Name: BumbleLock
-Depends: mobilesubstrate
-Version: 1.0.0
-Architecture: iphoneos-arm64
-Description: Biometric lock security system layer for Bumble on iOS 16.
-Maintainer: LORDCAV
-Author: LORDCAV
