@@ -1,0 +1,24 @@
+name: Build Tweak
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Theos Environment
+        uses: beerpiss/theos-action@v1
+
+      - name: Compile Library Binary
+        run: |
+          make FINALPACKAGE=1
+          mkdir -p shared_out
+          cp $(find .theos/obj -name "BumbleLock.dylib") shared_out/BumbleLock.dylib
+
+      - name: Dispatch Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BumbleLock-Tweak
+          path: shared_out/BumbleLock.dylib
