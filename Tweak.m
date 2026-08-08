@@ -8,27 +8,25 @@
 @implementation BumbleLockManager
 
 static UIView *shieldView = nil;
+static BOOL isAuthPromptActive = NO;
 
 + (void)runVerification {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
+        // Prevent stacking duplicate prompt threads
+        if (isAuthPromptActive) return;
         
-        // Loop through connected scenes to safely grab the active window on iOS 13+
+        UIWindow *window = nil;
         if (@available(iOS 13.0, *)) {
             for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
                 if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
                     UIWindowScene *windowScene = (UIWindowScene *)scene;
                     for (UIWindow *w in windowScene.windows) {
-                        if (w.isKeyWindow) {
-                            window = w;
-                            break;
-                        }
+                        if (w.isKeyWindow) { window = w; break; }
                     }
                 }
             }
         }
         
-        // Fallback for unexpected layout anomalies
         if (!window) {
             #pragma clang diagnostic push
             #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -36,14 +34,19 @@ static UIView *shieldView = nil;
             #pragma clang diagnostic pop
         }
         
-        if (!window) return;
+        // If the window hierarchy isn't ready yet, retry in 0.2 seconds
+        if (!window) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [BumbleLockManager runVerification];
+            });
+            return;
+        }
 
-        // 1. Create a pitch black privacy screen overlay
+        // 1. Build and pin the opaque privacy shield securely
         if (!shieldView) {
             shieldView = [[UIView alloc] initWithFrame:window.bounds];
             shieldView.backgroundColor = [UIColor blackColor];
             
-            // Add a yellow bumble accent dot in the exact center
             UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 80, 80)];
             dot.center = shieldView.center;
             dot.backgroundColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
@@ -56,7 +59,8 @@ static UIView *shieldView = nil;
             [window bringSubviewToFront:shieldView];
         }
 
-        // 2. Trigger the native iOS FaceID / Passcode prompt
+        // 2. Lock the execution gate and fire FaceID
+        isAuthPromptActive = YES;
         LAContext *context = [[LAContext alloc] init];
         NSError *error = nil;
 
@@ -65,8 +69,10 @@ static UIView *shieldView = nil;
                     localizedReason:@"Unlock Bumble to protect your privacy"
                               reply:^(BOOL success, NSError * _Nullable error) {
                 dispatch_async(dispatch_get_main_queue(), ^{
+                    isAuthPromptActive = NO; 
+                    
                     if (success) {
-                        // Safe removal of the privacy screen
+                        // Smoothly fade out the black window overlay
                         [UIView animateWithDuration:0.25 animations:^{
                             shieldView.alpha = 0;
                         } completion:^(BOOL finished) {
@@ -74,7 +80,7 @@ static UIView *shieldView = nil;
                             shieldView = nil;
                         }];
                     } else {
-                        // If canceled, present a locked screen with a reload button
+                        // Fallback UI block if authentication fails or is canceled
                         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Locked"
                                                                                        message:@"Authentication required to access Bumble."
                                                                                 preferredStyle:UIAlertControllerStyleAlert];
@@ -86,6 +92,7 @@ static UIView *shieldView = nil;
                 });
             }];
         } else {
+            isAuthPromptActive = NO;
             [shieldView removeFromSuperview];
             shieldView = nil;
         }
@@ -94,20 +101,22 @@ static UIView *shieldView = nil;
 @end
 
 // ============================================================================
-// INJECTION HOOK ENTRY
+// RUNTIME ATTACHMENT EXECUTIONS
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Run lock on app start
+        // Allow the app view 0.5 seconds to settle down on boot before checking FaceID
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
-            [BumbleLockManager runVerification];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [BumbleLockManager runVerification];
+            });
         }];
 
-        // Run lock when re-opening app from background multi-tasking window
+        // Re-authenticate immediately when returning from multi-tasking view
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
