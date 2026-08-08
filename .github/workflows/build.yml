@@ -15,11 +15,10 @@ jobs:
         run: |
           make FINALPACKAGE=1
           mkdir -p shared_out
-          cp $(find .theos/obj -name "BumbleLock.dylib") shared_out/BumbleLock.dylib
+          cp .theos/obj/BumbleLock.dylib shared_out/BumbleLock.dylib
 
       - name: Dispatch Package
         uses: actions/upload-artifact@v4
         with:
           name: BumbleLock-Tweak
           path: shared_out/BumbleLock.dylib
- 
