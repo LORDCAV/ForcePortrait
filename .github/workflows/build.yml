@@ -1,0 +1,32 @@
+name: Build Dylib
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Theos
+        run: |
+          bash -c "$(curl -fsSL https://githubusercontent.com)"
+          curl -LO https://github.com
+          mkdir -p $THEOS/sdks
+          tar -xf iPhoneOS16.5.sdk.tar.xz -C $THEOS/sdks
+
+      - name: Build Tweak
+        run: |
+          export THEOS=~/theos
+          make
+
+      - name: Locate and Rename Dylib
+        run: |
+          mkdir output
+          cp .theos/obj/debug/ForcePortrait.dylib output/ForcePortrait.dylib
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForcePortrait-Dylib
+          path: output/ForcePortrait.dylib
