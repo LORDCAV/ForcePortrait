@@ -20,33 +20,45 @@
         }
     }
 
-    // 2. UNIVERSAL DEEP TEXT BRIGHTENER (Fixes swiping profile cards text)
+    // 2. ATTRIBUTED TEXT OVERRIDER (Fixes About Me, Interest Tags, and Locations)
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
-        CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-        if (label.textColor) {
+        
+        // Check if Bumble is using an attributed string text layout format
+        if (label.attributedText && label.attributedText.length > 0) {
+            NSMutableAttributedString *mutableAttString = [label.attributedText mutableCopy];
+            NSRange fullRange = NSMakeRange(0, mutableAttString.length);
+            
+            // Force the foreground text color layer key directly to pure white
+            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:fullRange];
+            label.attributedText = mutableAttString;
+        } else if (label.textColor) {
+            // Fallback for standard string properties
+            CGFloat red = 0, green = 0, blue = 0, alpha = 0;
             [label.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
             
-            // Check if the text is dark or greyish (not yellow or bright white)
             if (red < 0.82 && green < 0.82 && blue < 0.82) {
-                // Preserve Bumble's yellow text links and tags perfectly
                 if (red > 0.6 && green > 0.5 && blue < 0.2) {
                     label.textColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
                 } else {
-                    // Force all grey profile info, distance text, and bios to crisp white
                     label.textColor = [UIColor whiteColor];
                 }
             }
         }
     }
 
-    // 3. Multi-line Text Field & Chat Bubble Content Brightener
+    // 3. Multi-line Rich Text View Container Brightener (Fixes detailed prompt answers)
     if ([view isKindOfClass:[UITextView class]]) {
         UITextView *textView = (UITextView *)view;
         textView.backgroundColor = [UIColor clearColor];
         
-        CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-        if (textView.textColor) {
+        if (textView.attributedText && textView.attributedText.length > 0) {
+            NSMutableAttributedString *mutableAttString = [textView.attributedText mutableCopy];
+            NSRange fullRange = NSMakeRange(0, mutableAttString.length);
+            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:fullRange];
+            textView.attributedText = mutableAttString;
+        } else if (textView.textColor) {
+            CGFloat red = 0, green = 0, blue = 0, alpha = 0;
             [textView.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
             if (red < 0.82 && green < 0.82 && blue < 0.82) {
                 textView.textColor = [UIColor whiteColor];
@@ -54,20 +66,16 @@
         }
     }
 
-    // 4. Interactive Profile Buttons & Info Tag Labels
+    // 4. Interactive Profile Selection Buttons
     if ([view isKindOfClass:[UIButton class]]) {
         UIButton *button = (UIButton *)view;
         if (button.titleLabel) {
-            CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-            [button.titleLabel.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
-            if (red < 0.82 && green < 0.82 && blue < 0.82) {
-                [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-                [button setTitleColor:[UIColor whiteColor] forState:UIControlStateSelected];
-            }
+            [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [button setTitleColor:[UIColor whiteColor] forState:UIControlStateSelected];
         }
     }
 
-    // 5. Active Chat Input Field Customization
+    // 5. Active Chat Box Input Customization
     if ([view isKindOfClass:[UITextField class]]) {
         UITextField *field = (UITextField *)view;
         field.backgroundColor = [UIColor colorWithRed:32.0/255.0 green:32.0/255.0 blue:32.0/255.0 alpha:1.0];
@@ -113,7 +121,6 @@ static void init(void) {
             }
         }];
         
-        // Main view rendering heartbeat hook (keeps layout dark while scrolling)
         Class viewClass = [UIView class];
         SEL layoutSelector = @selector(layoutSubviews);
         __block IMP originalLayoutSubviews = NULL;
