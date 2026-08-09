@@ -76,17 +76,6 @@
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Corrected notification hooks targeting window hierarchy changes
-        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationUserInterfaceStyleDidChangeNotification
-                                                          object:nil
-                                                           queue:[NSOperationQueue mainQueue]
-                                                      usingBlock:^(NSNotification * _Nonnull note) {
-            UIWindow *activeWindow = [UIApplication sharedApplication].keyWindow;
-            if (activeWindow) {
-                [BumbleUniversalDarkEngine applyThemeToView:activeWindow];
-            }
-        }];
-
         // Hook view lifecycle changes to cover tab navigation clicks smoothly
         Class vcClass = [UIViewController class];
         SEL viewDidAppearSel = @selector(viewDidAppear:);
@@ -98,15 +87,23 @@ static void init(void) {
             }
             UIViewController *vc = (__bridge UIViewController *)self;
             if (vc.view) {
+                // Apply immediately on transition entry
                 [BumbleUniversalDarkEngine applyThemeToView:vc.view];
+                
+                // Secondary delayed capture to intercept dynamic database data loading onto tabs
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    if (vc.view) {
+                        [BumbleUniversalDarkEngine applyThemeToView:vc.view];
+                    }
+                });
             }
         };
         
         IMP newViewDidAppear = imp_implementationWithBlock(block);
         Method origVCMethod = class_getInstanceMethod(vcClass, viewDidAppearSel);
-        originalLayoutSubviews = method_setImplementation(origVCMethod, newViewDidAppear);
+        originalViewDidAppear = method_setImplementation(origVCMethod, newViewDidAppear);
 
-        // Lock dark theme parameters on startup
+        // Lock dark theme parameters globally on application startup
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
