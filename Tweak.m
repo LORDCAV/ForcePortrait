@@ -12,16 +12,22 @@
 
     // 1. GLOBAL BACKGROUND CONVERSION PANEL
     if (view.backgroundColor) {
-        CGFloat r = 0, g = 0, b = 0, a = 0;
-        [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
-        
-        // Force all white banners (like Opening Moves) and navbar layouts straight to black
-        if (r > 0.85 && g > 0.85 && b > 0.85) {
-            view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:a];
+        // Handle explicit clear background layouts inside the collection grids
+        NSString *className = NSStringFromClass([view class]);
+        if ([className containsString:@"Grid"] || [className containsString:@"List"] || [className containsString:@"Collection"]) {
+            view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:1.0];
+        } else {
+            CGFloat r = 0, g = 0, b = 0, a = 0;
+            [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
+            
+            // Force all bright banners, rows, and backgrounds straight to dark grey/black
+            if (r > 0.82 && g > 0.82 && b > 0.82) {
+                view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:a];
+            }
         }
     }
 
-    // 2. UNIVERSAL OVERLAY DETECTION
+    // 2. UNIVERSAL OVERLAY DETECTION (Fixes headers and banner containers)
     NSString *className = NSStringFromClass([view class]);
     if ([className containsString:@"Header"] || [className containsString:@"Banner"] || [className containsString:@"Bar"] || [className containsString:@"Card"]) {
         CGFloat r = 0, g = 0, b = 0, a = 0;
@@ -45,15 +51,15 @@
             CGFloat r = 0, g = 0, b = 0, a = 0;
             [label.textColor getRed:&r green:&g blue:&b alpha:&a];
             
-            if (r < 0.8 && g < 0.8 && b < 0.8) {
-                if (!(r > 0.6 && g > 0.5 && b < 0.2)) { // Preserve yellow branding
+            if (r < 0.85 && g < 0.85 && b < 0.85) {
+                if (!(r > 0.6 && g > 0.5 && b < 0.2)) { // Preserve yellow branding strings
                     label.textColor = [UIColor whiteColor];
                 }
             }
         }
     }
 
-    // 4. CHAT COMPONENT TEXT VIEWS & FIELDS
+    // 4. CHAT COMPONENT TEXT VIEWS & INPUT BOXES
     if ([view isKindOfClass:[UITextView class]]) {
         UITextView *tv = (UITextView *)view;
         tv.textColor = [UIColor whiteColor];
@@ -71,12 +77,11 @@
 @end
 
 // ============================================================================
-// LIVE TRANSITION TRACKING RUNTIME HOOKS
+// ASYNCHRONOUS DUAL-STAGE PULSE TRACKING HOOKS
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Hook view lifecycle changes to cover tab navigation clicks smoothly
         Class vcClass = [UIViewController class];
         SEL viewDidAppearSel = @selector(viewDidAppear:);
         __block IMP originalViewDidAppear = NULL;
@@ -87,11 +92,11 @@ static void init(void) {
             }
             UIViewController *vc = (__bridge UIViewController *)self;
             if (vc.view) {
-                // Apply immediately on transition entry
+                // Pulse 1: Instant visual change right when you tap the tab
                 [BumbleUniversalDarkEngine applyThemeToView:vc.view];
                 
-                // Secondary delayed capture to intercept dynamic database data loading onto tabs
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                // Pulse 2: Secondary delayed scan to lock dark theme over loading server data cells
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     if (vc.view) {
                         [BumbleUniversalDarkEngine applyThemeToView:vc.view];
                     }
@@ -103,7 +108,7 @@ static void init(void) {
         Method origVCMethod = class_getInstanceMethod(vcClass, viewDidAppearSel);
         originalViewDidAppear = method_setImplementation(origVCMethod, newViewDidAppear);
 
-        // Lock dark theme parameters globally on application startup
+        // Lock global dark appearance layouts on cold boot
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
@@ -119,4 +124,5 @@ static void init(void) {
         }];
     }
 }
+
 
