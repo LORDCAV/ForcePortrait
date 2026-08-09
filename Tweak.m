@@ -20,25 +20,37 @@
         }
     }
 
-    // 2. UNIVERSAL TEXT BRIGHTENER (Fixes hard-to-read text)
+    // 2. Standard Label Text Brightener (Targeting profiles and subheaders)
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
         CGFloat red = 0, green = 0, blue = 0, alpha = 0;
         [label.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
         
-        // Check if the text is anything dark (not just pure black)
         if (red < 0.75 && green < 0.75 && blue < 0.75) {
-            // Keep Bumble's yellow theme intact if it's already a custom yellow accent
             if (red > 0.6 && green > 0.5 && blue < 0.2) {
                 label.textColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
             } else {
-                // Otherwise, force it to pure bright white so it pops off the black background
                 label.textColor = [UIColor whiteColor];
             }
         }
     }
 
-    // 3. Handle text input fields safely
+    // 3. NEW: Multi-line Bio & Chat Bubble Text View Brightener (Fixes swiping screen bios & replies)
+    if ([view isKindOfClass:[UITextView class]]) {
+        UITextView *textView = (UITextView *)view;
+        // Make the inside container backgrounds blend nicely into the dark layout
+        textView.backgroundColor = [UIColor clearColor];
+        
+        CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+        [textView.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
+        
+        // Force any dark or greyish text in bios and chats to pure white
+        if (red < 0.75 && green < 0.75 && blue < 0.75) {
+            textView.textColor = [UIColor whiteColor];
+        }
+    }
+
+    // 4. Input Text Box Field Styling
     if ([view isKindOfClass:[UITextField class]]) {
         UITextField *field = (UITextField *)view;
         field.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
