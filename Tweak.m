@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-// 1. CHAT & MESSAGE CELL BRIGHTENER (Fixes Chat Text & Reply Views)
+// 1. PRECISION CHAT BOX & BUBBLE BRIGHTENER (Fixes Chat Section & Typing Area)
 @interface BumbleChatDarkEngine : NSObject
 + (void)applyDarkChatThemesToView:(UIView *)view;
 @end
@@ -10,8 +10,11 @@
 + (void)applyDarkChatThemesToView:(UIView *)view {
     if (!view) return;
 
-    // Recoloring the message container canvases safely
-    if (view.backgroundColor) {
+    // Direct background swap for chat list rows and container views
+    NSString *className = NSStringFromClass([view class]);
+    if ([className containsString:@"Cell"] || [className containsString:@"Chat"] || [className containsString:@"Message"]) {
+        view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:1.0];
+    } else if (view.backgroundColor) {
         CGFloat r = 0, g = 0, b = 0, a = 0;
         [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
         if (r > 0.85 && g > 0.85 && b > 0.85) {
@@ -19,15 +22,22 @@
         }
     }
 
-    // Force reply inputs and text fields to stay white
+    // Force chat inputs, placeholder hints, and active keyboards to stay white
     if ([view isKindOfClass:[UITextView class]]) {
         UITextView *tv = (UITextView *)view;
         tv.textColor = [UIColor whiteColor];
+        tv.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
+        if (@available(iOS 13.0, *)) {
+            tv.keyboardAppearance = UIKeyboardAppearanceDark;
+        }
     }
     if ([view isKindOfClass:[UITextField class]]) {
         UITextField *tf = (UITextField *)view;
         tf.textColor = [UIColor whiteColor];
         tf.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
+        if (@available(iOS 13.0, *)) {
+            tf.keyboardAppearance = UIKeyboardAppearanceDark;
+        }
     }
 
     for (UIView *subview in view.subviews) {
@@ -47,7 +57,7 @@ id hooked_initWithString_attributes(id self, SEL _cmd, NSString *str, NSDictiona
     return original_initWithString_attributes(self, _cmd, str, newAttrs);
 }
 
-// 3. BACKGROUND SWIPING HOOK MODULE: Handles swiping screens cleanly
+// 3. BACKGROUND SWIPING HOOK MODULE: Keeps your clean swiping section perfectly dark
 @interface BumbleDualEngine : NSObject
 + (void)applyDarkThemeToView:(UIView *)view;
 @end
@@ -57,7 +67,6 @@ id hooked_initWithString_attributes(id self, SEL _cmd, NSString *str, NSDictiona
     if (!view) return;
 
     if (view.backgroundColor) {
-        // Targets bright backgrounds and swaps them to midnight black
         if ([view isKindOfClass:[UICollectionView class]] || [NSStringFromClass([view class]) containsString:@"Card"]) {
             view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:1.0];
         } else {
@@ -89,8 +98,8 @@ static void init(void) {
             class_replaceMethod(targetClass, targetSelector, (IMP)hooked_initWithString_attributes, method_getTypeEncoding(originalMethod));
         }
 
-        // Hook cell compilation layers to intercept chat boxes on the fly
-        Class cellClass = [UICollectionViewCell class];
+        // Hook Table View Rows (The specific framework Bumble uses for the chat screen layout)
+        Class cellClass = [UITableViewCell class];
         SEL layoutSelector = @selector(layoutSubviews);
         __block IMP originalLayoutSubviews = NULL;
         
@@ -98,7 +107,7 @@ static void init(void) {
             if (originalLayoutSubviews) {
                 ((void (*)(void *))originalLayoutSubviews)(self);
             }
-            UICollectionViewCell *cell = (__bridge UICollectionViewCell *)self;
+            UITableViewCell *cell = (__bridge UITableViewCell *)self;
             [BumbleChatDarkEngine applyDarkChatThemesToView:cell];
         };
         
@@ -106,7 +115,7 @@ static void init(void) {
         Method origMethod = class_getInstanceMethod(cellClass, layoutSelector);
         originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
 
-        // Hook standard layout windows
+        // Hook view controller loading maps
         Class vcClass = [UIViewController class];
         SEL viewWillAppearSel = @selector(viewWillAppear:);
         __block IMP originalViewWillAppear = NULL;
@@ -118,6 +127,7 @@ static void init(void) {
             UIViewController *vc = (__bridge UIViewController *)self;
             if (vc.view) {
                 [BumbleDualEngine applyDarkThemeToView:vc.view];
+                [BumbleChatDarkEngine applyDarkChatThemesToView:vc.view];
             }
         };
         
@@ -141,4 +151,5 @@ static void init(void) {
         }];
     }
 }
+
 
