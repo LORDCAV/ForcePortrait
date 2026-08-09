@@ -16,25 +16,32 @@
         [view.backgroundColor getRed:&red green:&green blue:&blue alpha:&alpha];
         
         if (red > 0.85 && green > 0.85 && blue > 0.85) {
-            view.backgroundColor = [UIColor colorWithRed:20.0/255.0 green:20.0/255.0 blue:20.0/255.0 alpha:alpha];
+            view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:alpha];
         }
     }
 
-    // 2. Invert dark text strings to pure white for perfect legibility
+    // 2. UNIVERSAL TEXT BRIGHTENER (Fixes hard-to-read text)
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
         CGFloat red = 0, green = 0, blue = 0, alpha = 0;
         [label.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
         
-        if (red < 0.3 && green < 0.3 && blue < 0.3) {
-            label.textColor = [UIColor whiteColor];
+        // Check if the text is anything dark (not just pure black)
+        if (red < 0.75 && green < 0.75 && blue < 0.75) {
+            // Keep Bumble's yellow theme intact if it's already a custom yellow accent
+            if (red > 0.6 && green > 0.5 && blue < 0.2) {
+                label.textColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
+            } else {
+                // Otherwise, force it to pure bright white so it pops off the black background
+                label.textColor = [UIColor whiteColor];
+            }
         }
     }
 
     // 3. Handle text input fields safely
     if ([view isKindOfClass:[UITextField class]]) {
         UITextField *field = (UITextField *)view;
-        field.backgroundColor = [UIColor colorWithRed:35.0/255.0 green:35.0/255.0 blue:35.0/255.0 alpha:1.0];
+        field.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
         field.textColor = [UIColor whiteColor];
     }
 
@@ -45,20 +52,18 @@
 }
 @end
 
-// ============================================================================
-// SYSTEM-WIDE RUNTIME INTERCEPTIONS
-// ============================================================================
+-- ============================================================================
+-- SYSTEM-WIDE RUNTIME INTERCEPTIONS
+-- ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Safe notification listener targeting active multitasking views
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
             UIWindow *activeWindow = nil;
             
-            // Loop through active scene arrays to satisfy the iOS 16 compiler requirements
             if (@available(iOS 13.0, *)) {
                 for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
                     if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
@@ -70,7 +75,6 @@ static void init(void) {
                 }
             }
             
-            // Safe fallback configuration wrapped inside compiler ignore blocks
             if (!activeWindow) {
                 #pragma clang diagnostic push
                 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -83,7 +87,6 @@ static void init(void) {
             }
         }];
         
-        // Intercept standard view sublayout rearrangements to maintain theme on scroll
         Class viewClass = [UIView class];
         SEL layoutSelector = @selector(layoutSubviews);
         __block IMP originalLayoutSubviews = NULL;
