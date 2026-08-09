@@ -12,22 +12,21 @@
 
     // 1. GLOBAL BACKGROUND CONVERSION PANEL
     if (view.backgroundColor) {
-        // Handle explicit clear background layouts inside the collection grids
         NSString *className = NSStringFromClass([view class]);
-        if ([className containsString:@"Grid"] || [className containsString:@"List"] || [className containsString:@"Collection"]) {
+        if ([className containsString:@"Grid"] || [className containsString:@"List"] || [className containsString:@"Collection"] || [className containsString:@"Scroll"]) {
             view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:1.0];
         } else {
             CGFloat r = 0, g = 0, b = 0, a = 0;
             [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
             
-            // Force all bright banners, rows, and backgrounds straight to dark grey/black
+            // Force all bright layout grids, rows, and banners straight to dark grey/black
             if (r > 0.82 && g > 0.82 && b > 0.82) {
                 view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:a];
             }
         }
     }
 
-    // 2. UNIVERSAL OVERLAY DETECTION (Fixes headers and banner containers)
+    // 2. UNIVERSAL OVERLAY DETECTION (Fixes headers, navbars, and custom banner cards)
     NSString *className = NSStringFromClass([view class]);
     if ([className containsString:@"Header"] || [className containsString:@"Banner"] || [className containsString:@"Bar"] || [className containsString:@"Card"]) {
         CGFloat r = 0, g = 0, b = 0, a = 0;
@@ -70,6 +69,7 @@
         tf.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
     }
 
+    // Safely look into subviews
     for (UIView *subview in view.subviews) {
         [BumbleUniversalDarkEngine applyThemeToView:subview];
     }
@@ -77,36 +77,28 @@
 @end
 
 // ============================================================================
-// ASYNCHRONOUS DUAL-STAGE PULSE TRACKING HOOKS
+// CONTINUOUS GLOBAL CANVAS HEARTBEAT HOOKS
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        Class vcClass = [UIViewController class];
-        SEL viewDidAppearSel = @selector(viewDidAppear:);
-        __block IMP originalViewDidAppear = NULL;
+        // Core Layout Heartbeat Hook (Triggers every time the app updates, flips tabs, or redraws)
+        Class viewClass = [UIView class];
+        SEL layoutSelector = @selector(layoutSubviews);
+        __block IMP originalLayoutSubviews = NULL;
         
-        id block = ^(void *self, BOOL animated) {
-            if (originalViewDidAppear) {
-                ((void (*)(void *, BOOL))originalViewDidAppear)(self, animated);
+        id block = ^(void *self) {
+            if (originalLayoutSubviews) {
+                ((void (*)(void *))originalLayoutSubviews)(self);
             }
-            UIViewController *vc = (__bridge UIViewController *)self;
-            if (vc.view) {
-                // Pulse 1: Instant visual change right when you tap the tab
-                [BumbleUniversalDarkEngine applyThemeToView:vc.view];
-                
-                // Pulse 2: Secondary delayed scan to lock dark theme over loading server data cells
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    if (vc.view) {
-                        [BumbleUniversalDarkEngine applyThemeToView:vc.view];
-                    }
-                });
-            }
+            UIView *currentView = (__bridge UIView *)self;
+            // Instantly catch any tab switches, collection refreshes, or server changes on the fly
+            [BumbleUniversalDarkEngine applyThemeToView:currentView];
         };
         
-        IMP newViewDidAppear = imp_implementationWithBlock(block);
-        Method origVCMethod = class_getInstanceMethod(vcClass, viewDidAppearSel);
-        originalViewDidAppear = method_setImplementation(origVCMethod, newViewDidAppear);
+        IMP newLayoutSubviews = imp_implementationWithBlock(block);
+        Method origMethod = class_getInstanceMethod(viewClass, layoutSelector);
+        originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
 
         // Lock global dark appearance layouts on cold boot
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
@@ -124,5 +116,3 @@ static void init(void) {
         }];
     }
 }
-
-
