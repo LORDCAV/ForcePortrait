@@ -10,20 +10,16 @@ jobs:
 
       - name: Setup Theos Environment
         uses: beerpiss/theos-action@v1
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1' # Prevents the gtar caching loop from freezing
+        with:
+          theos-sdks: https://github.com
 
       - name: Compile Library Binary
         run: |
           make FINALPACKAGE=1
           mkdir -p shared_out
-          
-          # Universal root path check to catch the binary automatically
-          if [ -f ".theos/obj/BumbleLock.dylib" ]; then
-            cp .theos/obj/BumbleLock.dylib shared_out/BumbleLock.dylib
-          elif [ -f ".theos/obj/debug/BumbleLock.dylib" ]; then
-            cp .theos/obj/debug/BumbleLock.dylib shared_out/BumbleLock.dylib
-          else
-            find .theos/obj/ -name "BumbleLock.dylib" -exec cp {} shared_out/BumbleLock.dylib \;
-          fi
+          cp .theos/obj/BumbleLock.dylib shared_out/BumbleLock.dylib
 
       - name: Dispatch Package
         uses: actions/upload-artifact@v4
