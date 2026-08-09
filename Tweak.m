@@ -20,7 +20,7 @@
         }
     }
 
-    // 2. Standard Label Text Brightener (Targeting profiles and subheaders)
+    // 2. Standard Label Text Brightener (Targeting basic profiles and headings)
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
         CGFloat red = 0, green = 0, blue = 0, alpha = 0;
@@ -35,22 +35,51 @@
         }
     }
 
-    // 3. NEW: Multi-line Bio & Chat Bubble Text View Brightener (Fixes swiping screen bios & replies)
+    // 3. Multi-line Bio & Chat Bubble Text View Brightener
     if ([view isKindOfClass:[UITextView class]]) {
         UITextView *textView = (UITextView *)view;
-        // Make the inside container backgrounds blend nicely into the dark layout
         textView.backgroundColor = [UIColor clearColor];
         
         CGFloat red = 0, green = 0, blue = 0, alpha = 0;
         [textView.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
         
-        // Force any dark or greyish text in bios and chats to pure white
         if (red < 0.75 && green < 0.75 && blue < 0.75) {
             textView.textColor = [UIColor whiteColor];
         }
     }
 
-    // 4. Input Text Box Field Styling
+    // 4. NEW: Interactive Button Text Overrider (Fixes grey info buttons/tags on swiping cards)
+    if ([view isKindOfClass:[UIButton class]]) {
+        UIButton *button = (UIButton *)view;
+        
+        // Target text inside standard buttons
+        if (button.titleLabel) {
+            CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+            [button.titleLabel.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
+            
+            if (red < 0.75 && green < 0.75 && blue < 0.75) {
+                [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                [button setTitleColor:[UIColor whiteColor] forState:UIControlStateSelected];
+            }
+        }
+        
+        // Target modern configuration button styles introduced in newer iOS versions
+        if (@available(iOS 15.0, *)) {
+            if (button.configuration) {
+                UIButtonConfiguration *config = button.configuration;
+                if (config.baseForegroundColor) {
+                    CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+                    [config.baseForegroundColor getRed:&red green:&green blue:&blue alpha:&alpha];
+                    if (red < 0.75 && green < 0.75 && blue < 0.75) {
+                        config.baseForegroundColor = [UIColor whiteColor];
+                        button.configuration = config;
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Input Text Box Field Styling
     if ([view isKindOfClass:[UITextField class]]) {
         UITextField *field = (UITextField *)view;
         field.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
@@ -116,3 +145,4 @@ static void init(void) {
         originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
     }
 }
+
