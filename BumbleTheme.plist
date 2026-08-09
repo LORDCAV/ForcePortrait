@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
+<plist version="1.0">
+<dict>
+    <key>NSForegroundColorAttributeName</key>
+    <string>#FFFFFF</string>
+    <key>BackgroundColor</key>
+    <string>#121212</string>
+    <key>SecondaryTextColor</key>
+    <string>#FFFFFF</string>
+    <key>PrimaryTextColor</key>
+    <string>#FFFFFF</string>
+</dict>
+</plist>
