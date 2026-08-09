@@ -1,124 +1,120 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-@interface BumbleDarkManager : NSObject
-+ (void)applyDarkThemeToView:(UIView *)view;
+@interface BumblePrecisionDarkEngine : NSObject
++ (void)darkenProfileInterfaceLayer:(UIView *)view;
 @end
 
-@implementation BumbleDarkManager
+@implementation BumblePrecisionDarkEngine
 
-+ (void)applyDarkThemeToView:(UIView *)view {
++ (void)darkenProfileInterfaceLayer:(UIView *)view {
     if (!view) return;
 
-    // 1. Invert white or bright backgrounds to a premium dark midnight theme
+    // 1. Target background containers specifically to avoid global looping crashes
     if (view.backgroundColor) {
-        CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-        [view.backgroundColor getRed:&red green:&green blue:&blue alpha:&alpha];
+        CGFloat r = 0, g = 0, b = 0, a = 0;
+        [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
         
-        if (red > 0.85 && green > 0.85 && blue > 0.85) {
-            view.backgroundColor = [UIColor colorWithRed:18.0/255.0 green:18.0/255.0 blue:18.0/255.0 alpha:alpha];
+        // Target only white/bright structural cards and background panels
+        if (r > 0.85 && g > 0.85 && b > 0.85) {
+            view.backgroundColor = [UIColor colorWithRed:18.0/255.0 green:18.0/255.0 blue:18.0/255.0 alpha:a];
         }
     }
 
-    // 2. FORCE SYSTEM CONTRAST RENDERING (Fixes SwiftUI and Canvas Grey Text)
-    // Intercepts the graphics layer and forces it to draw text with absolute white foreground properties
-    if ([view respondsToSelector:@selector(setTintColor:)]) {
-        #pragma clang diagnostic push
-        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        view.tintColor = [UIColor whiteColor];
-        #pragma clang diagnostic pop
-    }
-
+    // 2. Overwrite attributed string blocks (About Me, Interests, Badges)
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
-        label.textColor = [UIColor whiteColor];
         
         if (label.attributedText && label.attributedText.length > 0) {
-            NSMutableAttributedString *mutableAttString = [label.attributedText mutableCopy];
-            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:NSMakeRange(0, mutableAttString.length)];
-            label.attributedText = mutableAttString;
+            NSMutableAttributedString *mutableString = [label.attributedText mutableCopy];
+            NSRange fullRange = NSMakeRange(0, mutableString.length);
+            
+            // Apply bright white to character rendering layers safely
+            [mutableString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:fullRange];
+            label.attributedText = mutableString;
+        } else if (label.textColor) {
+            CGFloat r = 0, g = 0, b = 0, a = 0;
+            [label.textColor getRed:&r green:&g blue:&b alpha:&a];
+            
+            // Brighten up standard dark grey or faded subheaders
+            if (r < 0.8 && g < 0.8 && b < 0.8) {
+                // Keep Bumble yellow accents completely untouched
+                if (!(r > 0.6 && g > 0.5 && b < 0.2)) {
+                    label.textColor = [UIColor whiteColor];
+                }
+            }
         }
     }
 
-    if ([view isKindOfClass:[UITextView class]]) {
-        UITextView *textView = (UITextView *)view;
-        textView.backgroundColor = [UIColor clearColor];
-        textView.textColor = [UIColor whiteColor];
-        
-        if (textView.attributedText && textView.attributedText.length > 0) {
-            NSMutableAttributedString *mutableAttString = [textView.attributedText mutableCopy];
-            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:NSMakeRange(0, mutableAttString.length)];
-            textView.attributedText = mutableAttString;
+    // 3. Handle SwiftUI-backed scrolling card info blocks specifically
+    NSString *className = NSStringFromClass([view class]);
+    if ([className containsString:@"Button"] || [className containsString:@"Cell"] || [className containsString:@"Card"]) {
+        if ([view respondsToSelector:@selector(setTintColor:)]) {
+            view.tintColor = [UIColor whiteColor];
         }
     }
 
-    // 3. Force buttons and icon titles to white
-    if ([view isKindOfClass:[UIButton class]]) {
-        UIButton *button = (UIButton *)view;
-        [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        [button setTitleColor:[UIColor whiteColor] forState:UIControlStateSelected];
-        if (button.imageView) {
-            button.imageView.tintColor = [UIColor whiteColor];
-        }
-    }
-
-    // Deep-dive scan through child view arrays recursively to sweep all layouts
+    // Safely recurse into subviews without creating infinite tracking cycles
     for (UIView *subview in view.subviews) {
-        [BumbleDarkManager applyDarkThemeToView:subview];
+        [BumblePrecisionDarkEngine darkenProfileInterfaceLayer:subview];
     }
 }
 @end
 
 // ============================================================================
-// SYSTEM-WIDE RUNTIME INTERCEPTIONS
+// STRUCTURAL RUNTIME HOOKS
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
+        // Run deep styling scan when the application window registers active states
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
-            UIWindow *activeWindow = nil;
+            UIWindow *window = nil;
             if (@available(iOS 13.0, *)) {
                 for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
                     if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
-                        UIWindowScene *windowScene = (UIWindowScene *)scene;
-                        for (UIWindow *w in windowScene.windows) {
-                            if (w.isKeyWindow) { activeWindow = w; break; }
+                        UIWindowScene *ws = (UIWindowScene *)scene;
+                        for (UIWindow *w in ws.windows) {
+                            if (w.isKeyWindow) { window = w; break; }
                         }
                     }
                 }
             }
-            if (!activeWindow) {
+            if (!window) {
                 #pragma clang diagnostic push
                 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                activeWindow = [UIApplication sharedApplication].keyWindow;
+                window = [UIApplication sharedApplication].keyWindow;
                 #pragma clang diagnostic pop
             }
-            if (activeWindow) {
-                // Forces the entire window layout engine to use heavy high contrast configurations
+            
+            if (window) {
                 if (@available(iOS 13.0, *)) {
-                    activeWindow.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+                    window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
                 }
-                [BumbleDarkManager applyDarkThemeToView:activeWindow];
+                [BumblePrecisionDarkEngine darkenProfileInterfaceLayer:window];
             }
         }];
+
+        // Hook view controller loading sequence to execute coloring smoothly before layouts show up
+        Class vcClass = [UIViewController class];
+        SEL viewWillAppearSel = @selector(viewWillAppear:);
+        __block IMP originalViewWillAppear = NULL;
         
-        Class viewClass = [UIView class];
-        SEL layoutSelector = @selector(layoutSubviews);
-        __block IMP originalLayoutSubviews = NULL;
-        
-        id block = ^(void *self) {
-            if (originalLayoutSubviews) {
-                ((void (*)(void *))originalLayoutSubviews)(self);
+        id block = ^(void *self, BOOL animated) {
+            if (originalViewWillAppear) {
+                ((void (*)(void *, BOOL))originalViewWillAppear)(self, animated);
             }
-            UIView *currentView = (__bridge UIView *)self;
-            [BumbleDarkManager applyDarkThemeToView:currentView];
+            UIViewController *vc = (__bridge UIViewController *)self;
+            if (vc.view) {
+                [BumblePrecisionDarkEngine darkenProfileInterfaceLayer:vc.view];
+            }
         };
         
-        IMP newLayoutSubviews = imp_implementationWithBlock(block);
-        Method origMethod = class_getInstanceMethod(viewClass, layoutSelector);
-        originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
+        IMP newViewWillAppear = imp_implementationWithBlock(block);
+        Method origMethod = class_getInstanceMethod(vcClass, viewWillAppearSel);
+        originalViewWillAppear = method_setImplementation(origMethod, newViewWillAppear);
     }
 }
