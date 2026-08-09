@@ -22,7 +22,6 @@
     }
 
     // 2. UNIVERSAL OVERLAY DETECTION
-    // Strips white card properties from custom structural banner modules dynamically
     NSString *className = NSStringFromClass([view class]);
     if ([className containsString:@"Header"] || [className containsString:@"Banner"] || [className containsString:@"Bar"] || [className containsString:@"Card"]) {
         CGFloat r = 0, g = 0, b = 0, a = 0;
@@ -34,11 +33,10 @@
         }
     }
 
-    // 3. PRECISION LABEL RE-COLORING (Fixes hard-to-read names and text values)
+    // 3. PRECISION LABEL RE-COLORING
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
         
-        // Overwrite rich attributed string values directly inside the data matrices
         if (label.attributedText && label.attributedText.length > 0) {
             NSMutableAttributedString *mutableString = [label.attributedText mutableCopy];
             [mutableString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:NSMakeRange(0, mutableString.length)];
@@ -47,16 +45,15 @@
             CGFloat r = 0, g = 0, b = 0, a = 0;
             [label.textColor getRed:&r green:&g blue:&b alpha:&a];
             
-            // If the text is dark grey or black, force it to pure white so it stands out
             if (r < 0.8 && g < 0.8 && b < 0.8) {
-                if (!(r > 0.6 && g > 0.5 && b < 0.2)) { // Preserve Bumble's yellow accent styles
+                if (!(r > 0.6 && g > 0.5 && b < 0.2)) { // Preserve yellow branding
                     label.textColor = [UIColor whiteColor];
                 }
             }
         }
     }
 
-    // 4. CHAT COMPONENT TEXT VIEWS & INPUT BOX FIELDS
+    // 4. CHAT COMPONENT TEXT VIEWS & FIELDS
     if ([view isKindOfClass:[UITextView class]]) {
         UITextView *tv = (UITextView *)view;
         tv.textColor = [UIColor whiteColor];
@@ -67,7 +64,6 @@
         tf.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
     }
 
-    // Deep-dive scan through child view arrays recursively to cover all layouts on screen
     for (UIView *subview in view.subviews) {
         [BumbleUniversalDarkEngine applyThemeToView:subview];
     }
@@ -80,41 +76,25 @@
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Core Notification Interceptor: Captures when tabs change or views layout reshuffle
-        [[NSNotificationCenter defaultCenter] addObserverForName:UILayoutDidChangedNotification
+        // Corrected notification hooks targeting window hierarchy changes
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationUserInterfaceStyleDidChangeNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
-            UIWindow *activeWindow = nil;
-            if (@available(iOS 13.0, *)) {
-                for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                    if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
-                        UIWindowScene *windowScene = (UIWindowScene *)scene;
-                        for (UIWindow *w in windowScene.windows) {
-                            if (w.isKeyWindow) { activeWindow = w; break; }
-                        }
-                    }
-                }
-            }
-            if (!activeWindow) {
-                #pragma clang diagnostic push
-                #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                activeWindow = [UIApplication sharedApplication].keyWindow;
-                #pragma clang diagnostic pop
-            }
+            UIWindow *activeWindow = [UIApplication sharedApplication].keyWindow;
             if (activeWindow) {
                 [BumbleUniversalDarkEngine applyThemeToView:activeWindow];
             }
         }];
 
-        // Hook the standard View Controller loop for double coverage during transitions
+        // Hook view lifecycle changes to cover tab navigation clicks smoothly
         Class vcClass = [UIViewController class];
-        SEL viewWillAppearSel = @selector(viewWillAppear:);
-        __block IMP originalViewWillAppear = NULL;
+        SEL viewDidAppearSel = @selector(viewDidAppear:);
+        __block IMP originalViewDidAppear = NULL;
         
         id block = ^(void *self, BOOL animated) {
-            if (originalViewWillAppear) {
-                ((void (*)(void *, BOOL))originalViewWillAppear)(self, animated);
+            if (originalViewDidAppear) {
+                ((void (*)(void *, BOOL))originalViewDidAppear)(self, animated);
             }
             UIViewController *vc = (__bridge UIViewController *)self;
             if (vc.view) {
@@ -122,11 +102,11 @@ static void init(void) {
             }
         };
         
-        IMP newViewWillAppear = imp_implementationWithBlock(block);
-        Method origVCMethod = class_getInstanceMethod(vcClass, viewWillAppearSel);
-        originalViewWillAppear = method_setImplementation(origVCMethod, newViewWillAppear);
+        IMP newViewDidAppear = imp_implementationWithBlock(block);
+        Method origVCMethod = class_getInstanceMethod(vcClass, viewDidAppearSel);
+        originalLayoutSubviews = method_setImplementation(origVCMethod, newViewDidAppear);
 
-        // Lock global dark interface components on boot
+        // Lock dark theme parameters on startup
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
