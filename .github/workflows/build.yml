@@ -11,8 +11,9 @@ jobs:
       - name: Setup Theos Environment
         uses: beerpiss/theos-action@v1
         with:
+          # Points the builder to advanced, patched iOS 16 framework libraries
           theos-sdks: https://github.com/theos/sdks
-          # Forces the server to clear and rebuild the environment from scratch
+          theos-sdks-ref: master
           theos-src: https://github.com/theos/theos
           theos-ref: master
 
