@@ -10,10 +10,11 @@ jobs:
 
       - name: Setup Theos Environment
         uses: beerpiss/theos-action@v1
-        env:
-          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1' # Prevents the gtar caching loop from freezing
         with:
-          theos-sdks: https://github.com
+          theos-sdks: https://github.com/theos/sdks
+          # Forces the server to clear and rebuild the environment from scratch
+          theos-src: https://github.com/theos/theos
+          theos-ref: master
 
       - name: Compile Library Binary
         run: |
