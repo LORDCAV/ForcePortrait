@@ -8,12 +8,12 @@
 @implementation BumbleLockManager
 
 static UIView *shieldView = nil;
-static BOOL isAuthPromptActive = NO;
+static BOOL isProcessingAuth = NO;
 
 + (void)runVerification {
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Prevent stacking duplicate prompt threads
-        if (isAuthPromptActive) return;
+        // Safety lock: if already processing a scan, do not launch another one
+        if (isProcessingAuth) return;
         
         UIWindow *window = nil;
         if (@available(iOS 13.0, *)) {
@@ -34,7 +34,6 @@ static BOOL isAuthPromptActive = NO;
             #pragma clang diagnostic pop
         }
         
-        // If the window hierarchy isn't ready yet, retry in 0.2 seconds
         if (!window) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [BumbleLockManager runVerification];
@@ -42,7 +41,7 @@ static BOOL isAuthPromptActive = NO;
             return;
         }
 
-        // 1. Build and pin the opaque privacy shield securely
+        // 1. Instantly pin the black privacy screen to hide your profiles
         if (!shieldView) {
             shieldView = [[UIView alloc] initWithFrame:window.bounds];
             shieldView.backgroundColor = [UIColor blackColor];
@@ -59,8 +58,8 @@ static BOOL isAuthPromptActive = NO;
             [window bringSubviewToFront:shieldView];
         }
 
-        // 2. Lock the execution gate and fire FaceID
-        isAuthPromptActive = YES;
+        // 2. Fire the Face ID request cleanly
+        isProcessingAuth = YES;
         LAContext *context = [[LAContext alloc] init];
         NSError *error = nil;
 
@@ -69,18 +68,18 @@ static BOOL isAuthPromptActive = NO;
                     localizedReason:@"Unlock Bumble to protect your privacy"
                               reply:^(BOOL success, NSError * _Nullable error) {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    isAuthPromptActive = NO; 
-                    
                     if (success) {
-                        // Smoothly fade out the black window overlay
+                        // Success: Fade out the privacy wall and unlock the processing flag
                         [UIView animateWithDuration:0.25 animations:^{
                             shieldView.alpha = 0;
                         } completion:^(BOOL finished) {
                             [shieldView removeFromSuperview];
                             shieldView = nil;
+                            isProcessingAuth = NO;
                         }];
                     } else {
-                        // Fallback UI block if authentication fails or is canceled
+                        // Failed/Canceled: Keep the flag locked so it can't loop, show try again button
+                        isProcessingAuth = NO;
                         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Locked"
                                                                                        message:@"Authentication required to access Bumble."
                                                                                 preferredStyle:UIAlertControllerStyleAlert];
@@ -92,7 +91,7 @@ static BOOL isAuthPromptActive = NO;
                 });
             }];
         } else {
-            isAuthPromptActive = NO;
+            isProcessingAuth = NO;
             [shieldView removeFromSuperview];
             shieldView = nil;
         }
@@ -101,12 +100,12 @@ static BOOL isAuthPromptActive = NO;
 @end
 
 // ============================================================================
-// RUNTIME ATTACHMENT EXECUTIONS
+// CLEAN INITIALIZATION ENTRY
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Allow the app view 0.5 seconds to settle down on boot before checking FaceID
+        // Only trigger on clean cold launch to prevent multi-tasking overlay loops
         [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
@@ -114,14 +113,6 @@ static void init(void) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [BumbleLockManager runVerification];
             });
-        }];
-
-        // Re-authenticate immediately when returning from multi-tasking view
-        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
-                                                          object:nil
-                                                           queue:[NSOperationQueue mainQueue]
-                                                      usingBlock:^(NSNotification * _Nonnull note) {
-            [BumbleLockManager runVerification];
         }];
     }
 }
