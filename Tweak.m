@@ -20,66 +20,46 @@
         }
     }
 
-    // 2. ATTRIBUTED TEXT OVERRIDER (Fixes About Me, Interest Tags, and Locations)
+    // 2. FORCE SYSTEM CONTRAST RENDERING (Fixes SwiftUI and Canvas Grey Text)
+    // Intercepts the graphics layer and forces it to draw text with absolute white foreground properties
+    if ([view respondsToSelector:@selector(setTintColor:)]) {
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        view.tintColor = [UIColor whiteColor];
+        #pragma clang diagnostic pop
+    }
+
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
+        label.textColor = [UIColor whiteColor];
         
-        // Check if Bumble is using an attributed string text layout format
         if (label.attributedText && label.attributedText.length > 0) {
             NSMutableAttributedString *mutableAttString = [label.attributedText mutableCopy];
-            NSRange fullRange = NSMakeRange(0, mutableAttString.length);
-            
-            // Force the foreground text color layer key directly to pure white
-            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:fullRange];
+            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:NSMakeRange(0, mutableAttString.length)];
             label.attributedText = mutableAttString;
-        } else if (label.textColor) {
-            // Fallback for standard string properties
-            CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-            [label.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
-            
-            if (red < 0.82 && green < 0.82 && blue < 0.82) {
-                if (red > 0.6 && green > 0.5 && blue < 0.2) {
-                    label.textColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
-                } else {
-                    label.textColor = [UIColor whiteColor];
-                }
-            }
         }
     }
 
-    // 3. Multi-line Rich Text View Container Brightener (Fixes detailed prompt answers)
     if ([view isKindOfClass:[UITextView class]]) {
         UITextView *textView = (UITextView *)view;
         textView.backgroundColor = [UIColor clearColor];
+        textView.textColor = [UIColor whiteColor];
         
         if (textView.attributedText && textView.attributedText.length > 0) {
             NSMutableAttributedString *mutableAttString = [textView.attributedText mutableCopy];
-            NSRange fullRange = NSMakeRange(0, mutableAttString.length);
-            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:fullRange];
+            [mutableAttString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:NSMakeRange(0, mutableAttString.length)];
             textView.attributedText = mutableAttString;
-        } else if (textView.textColor) {
-            CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-            [textView.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
-            if (red < 0.82 && green < 0.82 && blue < 0.82) {
-                textView.textColor = [UIColor whiteColor];
-            }
         }
     }
 
-    // 4. Interactive Profile Selection Buttons
+    // 3. Force buttons and icon titles to white
     if ([view isKindOfClass:[UIButton class]]) {
         UIButton *button = (UIButton *)view;
-        if (button.titleLabel) {
-            [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-            [button setTitleColor:[UIColor whiteColor] forState:UIControlStateSelected];
+        [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        [button setTitleColor:[UIColor whiteColor] forState:UIControlStateSelected];
+        if (button.imageView) {
+            button.imageView.tintColor = [UIColor whiteColor];
         }
-    }
-
-    // 5. Active Chat Box Input Customization
-    if ([view isKindOfClass:[UITextField class]]) {
-        UITextField *field = (UITextField *)view;
-        field.backgroundColor = [UIColor colorWithRed:32.0/255.0 green:32.0/255.0 blue:32.0/255.0 alpha:1.0];
-        field.textColor = [UIColor whiteColor];
     }
 
     // Deep-dive scan through child view arrays recursively to sweep all layouts
@@ -117,6 +97,10 @@ static void init(void) {
                 #pragma clang diagnostic pop
             }
             if (activeWindow) {
+                // Forces the entire window layout engine to use heavy high contrast configurations
+                if (@available(iOS 13.0, *)) {
+                    activeWindow.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+                }
                 [BumbleDarkManager applyDarkThemeToView:activeWindow];
             }
         }];
@@ -138,4 +122,3 @@ static void init(void) {
         originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
     }
 }
-
