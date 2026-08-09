@@ -1,118 +1,85 @@
 #import <UIKit/UIKit.h>
-#import <LocalAuthentication/LocalAuthentication.h>
+#import <objc/runtime.h>
 
-@interface BumbleLockManager : NSObject
-+ (void)runVerification;
+@interface BumbleDarkManager : NSObject
++ (void)applyDarkThemeToView:(UIView *)view;
 @end
 
-@implementation BumbleLockManager
+@implementation BumbleDarkManager
 
-static UIView *shieldView = nil;
-static BOOL isProcessingAuth = NO;
++ (void)applyDarkThemeToView:(UIView *)view {
+    if (!view) return;
 
-+ (void)runVerification {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // Safety lock: if already processing a scan, do not launch another one
-        if (isProcessingAuth) return;
+    // 1. Invert white or bright backgrounds to dark grey / black
+    if (view.backgroundColor) {
+        CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+        [view.backgroundColor getRed:&red green:&green blue:&blue alpha:&alpha];
         
-        UIWindow *window = nil;
-        if (@available(iOS 13.0, *)) {
-            for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
-                    UIWindowScene *windowScene = (UIWindowScene *)scene;
-                    for (UIWindow *w in windowScene.windows) {
-                        if (w.isKeyWindow) { window = w; break; }
-                    }
-                }
-            }
+        // If background is white or close to white, make it dark midnight grey
+        if (red > 0.85 && green > 0.85 && blue > 0.85) {
+            view.backgroundColor = [UIColor colorWithRed:20.0/255.0 green:20.0/255.0 blue:20.0/255.0 alpha:alpha];
         }
+    }
+
+    // 2. Invert dark text to pure white so it remains legible
+    if ([view isKindOfClass:[UILabel class]]) {
+        UILabel *label = (UILabel *)view;
+        CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+        [label.textColor getRed:&red green:&green blue:&blue alpha:&alpha];
         
-        if (!window) {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            window = [UIApplication sharedApplication].keyWindow;
-            #pragma clang diagnostic pop
+        // If text color is black or dark grey, flip it to pure white
+        if (red < 0.3 && green < 0.3 && blue < 0.3) {
+            label.textColor = [UIColor whiteColor];
         }
-        
-        if (!window) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [BumbleLockManager runVerification];
-            });
-            return;
-        }
+    }
 
-        // 1. Instantly pin the black privacy screen to hide your profiles
-        if (!shieldView) {
-            shieldView = [[UIView alloc] initWithFrame:window.bounds];
-            shieldView.backgroundColor = [UIColor blackColor];
-            
-            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 80, 80)];
-            dot.center = shieldView.center;
-            dot.backgroundColor = [UIColor colorWithRed:255.0/255.0 green:204.0/255.0 blue:0.0/255.0 alpha:1.0];
-            dot.layer.cornerRadius = 40;
-            [shieldView addSubview:dot];
-        }
+    // 3. Handle standard text fields and inputs
+    if ([view isKindOfClass:[UITextField class]]) {
+        UITextField *field = (UITextField *)view;
+        field.backgroundColor = [UIColor colorWithRed:35.0/255.0 green:35.0/255.0 blue:35.0/255.0 alpha:1.0];
+        field.textColor = [UIColor whiteColor];
+    }
 
-        if (!shieldView.superview) {
-            [window addSubview:shieldView];
-            [window bringSubviewToFront:shieldView];
-        }
-
-        // 2. Fire the Face ID request cleanly
-        isProcessingAuth = YES;
-        LAContext *context = [[LAContext alloc] init];
-        NSError *error = nil;
-
-        if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthentication error:&error]) {
-            [context evaluatePolicy:LAPolicyDeviceOwnerAuthentication
-                    localizedReason:@"Unlock Bumble to protect your privacy"
-                              reply:^(BOOL success, NSError * _Nullable error) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (success) {
-                        // Success: Fade out the privacy wall and unlock the processing flag
-                        [UIView animateWithDuration:0.25 animations:^{
-                            shieldView.alpha = 0;
-                        } completion:^(BOOL finished) {
-                            [shieldView removeFromSuperview];
-                            shieldView = nil;
-                            isProcessingAuth = NO;
-                        }];
-                    } else {
-                        // Failed/Canceled: Keep the flag locked so it can't loop, show try again button
-                        isProcessingAuth = NO;
-                        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Locked"
-                                                                                       message:@"Authentication required to access Bumble."
-                                                                                preferredStyle:UIAlertControllerStyleAlert];
-                        [alert addAction:[UIAlertAction actionWithTitle:@"Try Again" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-                            [BumbleLockManager runVerification];
-                        }]];
-                        [[window rootViewController] presentViewController:alert animated:YES completion:nil];
-                    }
-                });
-            }];
-        } else {
-            isProcessingAuth = NO;
-            [shieldView removeFromSuperview];
-            shieldView = nil;
-        }
-    });
+    // Recursively dive into child views to apply formatting system-wide
+    for (UIView *subview in view.subviews) {
+        [BumbleDarkManager applyDarkThemeToView:subview];
+    }
 }
 @end
 
 // ============================================================================
-// CLEAN INITIALIZATION ENTRY
+// RUNTIME VIEW CONTROLLER HOOKS
 // ============================================================================
 __attribute__((constructor))
 static void init(void) {
     @autoreleasepool {
-        // Only trigger on clean cold launch to prevent multi-tasking overlay loops
-        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+        // Intercept every view panel right before it displays on screen
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                           object:nil
                                                            queue:[NSOperationQueue mainQueue]
                                                       usingBlock:^(NSNotification * _Nonnull note) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [BumbleLockManager runVerification];
-            });
+            UIWindow *window = [UIApplication sharedApplication].keyWindow;
+            if (window) {
+                [BumbleDarkManager applyDarkThemeToView:window];
+            }
         }];
+        
+        // Setup hooks into the layout subviews engine to handle scrolling transformations
+        Class viewClass = [UIView class];
+        SEL layoutSelector = @selector(layoutSubviews);
+        __block IMP originalLayoutSubviews = NULL;
+        
+        id block = ^(void *self) {
+            if (originalLayoutSubviews) {
+                ((void (*)(void *))originalLayoutSubviews)(self);
+            }
+            // Run the deep darkening scan whenever objects rearrange or scroll
+            UIView *currentView = (__bridge UIView *)self;
+            [BumbleDarkManager applyDarkThemeToView:currentView];
+        };
+        
+        IMP newLayoutSubviews = imp_implementationWithBlock(block);
+        Method origMethod = class_getInstanceMethod(viewClass, layoutSelector);
+        originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
     }
 }
