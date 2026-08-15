@@ -1,30 +1,39 @@
-name: Build Tweak
-on: [workflow_dispatch]
+name: Build BumbleDarkMode
+
+on:
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
+
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Theos Environment
-        uses: beerpiss/theos-action@v1
-        with:
-          # Points the builder to advanced, patched iOS 16 framework libraries
-          theos-sdks: https://github.com/theos/sdks
-          theos-sdks-ref: master
-          theos-src: https://github.com/theos/theos
-          theos-ref: master
-
-      - name: Compile Library Binary
+      - name: Install dependencies
         run: |
-          make FINALPACKAGE=1
-          mkdir -p shared_out
-          cp .theos/obj/BumbleLock.dylib shared_out/BumbleLock.dylib
+          brew install ldid
+          brew install make
 
-      - name: Dispatch Package
+      - name: Install Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+
+      - name: Build BumbleDarkMode
+        run: |
+          export THEOS="$HOME/theos"
+          make clean
+          make package FINALPACKAGE=1
+
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: BumbleLock-Tweak
-          path: shared_out/BumbleLock.dylib
+          name: BumbleDarkMode-package
+          path: packages/*.deb
+
+      - name: Upload dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: BumbleDarkMode-dylib
+          path: .theos/obj/*.dylib
