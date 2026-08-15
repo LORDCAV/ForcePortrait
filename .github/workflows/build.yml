@@ -24,13 +24,7 @@ jobs:
         run: |
           export THEOS="$HOME/theos"
           make clean
-          make package FINALPACKAGE=1
-
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: BumbleDarkMode-package
-          path: packages/*.deb
+          make          # <- Changed: removed "package FINALPACKAGE=1"
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
