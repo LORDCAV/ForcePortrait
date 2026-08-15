@@ -57,10 +57,6 @@ static BOOL isLightColor(UIColor *color) {
         if (isDarkModeEnabled) {
             table.backgroundColor = OLED_BLACK;
             table.separatorColor = MEDIUM_GRAY;
-            // Fix for search bar background
-            if (@available(iOS 13.0, *)) {
-                table.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
-            }
         }
     } @catch (NSException *exception) {
         NSLog(@"[BumbleDarkMode] Error: %@", exception);
@@ -321,25 +317,6 @@ static BOOL isLightColor(UIColor *color) {
         // Ignore
     }
     %orig(color);
-}
-
-%end
-
-// ============================================================
-//  HOOK: UIKeyboard - Dark Mode
-// ============================================================
-%hook UIKeyboardImpl
-
-+ (instancetype)sharedInstance {
-    UIKeyboardImpl *keyboard = %orig;
-    @try {
-        if (isDarkModeEnabled) {
-            keyboard.keyboardAppearance = UIKeyboardAppearanceDark;
-        }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
-    return keyboard;
 }
 
 %end
