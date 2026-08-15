@@ -29,6 +29,58 @@ static BOOL isLightColor(UIColor *color) {
 }
 
 // ============================================================
+//  RECURSIVE DARK MODE APPLIER (Targets all subviews)
+// ============================================================
+static void applyDarkModeToView(UIView *view) {
+    @try {
+        if (!view) return;
+        
+        // Skip certain view types
+        if ([view isKindOfClass:[UIImageView class]]) return;
+        if ([view isKindOfClass:[UIButton class]]) return;
+        
+        // Apply dark background to EVERY view
+        @try {
+            if ([view respondsToSelector:@selector(setBackgroundColor:)]) {
+                UIColor *currentColor = view.backgroundColor;
+                // If it's white, light gray, or transparent with white background
+                if (currentColor && isLightColor(currentColor)) {
+                    view.backgroundColor = DARK_GRAY;
+                }
+                // If it's clear but the view is a container, make it dark
+                if ([currentColor isEqual:[UIColor clearColor]] && 
+                    [view isKindOfClass:[UIView class]] &&
+                    ![view isKindOfClass:[UILabel class]] &&
+                    ![view isKindOfClass:[UIImageView class]]) {
+                    view.backgroundColor = DARK_GRAY;
+                }
+            }
+        } @catch (NSException *e) {}
+        
+        // Force labels to white text
+        @try {
+            if ([view isKindOfClass:[UILabel class]]) {
+                UILabel *label = (UILabel *)view;
+                if (label.textColor && isLightColor(label.textColor)) {
+                    label.textColor = TEXT_WHITE;
+                }
+                // If label has light background, make it clear
+                if (label.backgroundColor && isLightColor(label.backgroundColor)) {
+                    label.backgroundColor = [UIColor clearColor];
+                }
+            }
+        } @catch (NSException *e) {}
+        
+        // Recursively apply to subviews
+        @try {
+            for (UIView *subview in view.subviews) {
+                applyDarkModeToView(subview);
+            }
+        } @catch (NSException *e) {}
+    } @catch (NSException *e) {}
+}
+
+// ============================================================
 //  MAIN ENTRY POINT
 // ============================================================
 %ctor {
@@ -39,6 +91,7 @@ static BOOL isLightColor(UIColor *color) {
             UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
             if (keyWindow) {
                 keyWindow.backgroundColor = OLED_BLACK;
+                applyDarkModeToView(keyWindow);
             }
         } @catch (NSException *exception) {
             NSLog(@"[BumbleDarkMode] Error: %@", exception);
@@ -70,10 +123,28 @@ static BOOL isLightColor(UIColor *color) {
             %orig(OLED_BLACK);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
+}
+
+- (void)reloadData {
+    %orig;
+    @try {
+        if (isDarkModeEnabled) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                applyDarkModeToView(self);
+            });
+        }
+    } @catch (NSException *exception) {}
+}
+
+- (void)layoutSubviews {
+    %orig;
+    @try {
+        if (isDarkModeEnabled) {
+            applyDarkModeToView(self);
+        }
+    } @catch (NSException *exception) {}
 }
 
 %end
@@ -90,6 +161,7 @@ static BOOL isLightColor(UIColor *color) {
             cell.backgroundColor = CARD_GRAY;
             cell.textLabel.textColor = TEXT_WHITE;
             cell.detailTextLabel.textColor = TEXT_LIGHT;
+            applyDarkModeToView(cell.contentView);
         }
     } @catch (NSException *exception) {
         NSLog(@"[BumbleDarkMode] Error: %@", exception);
@@ -103,10 +175,17 @@ static BOOL isLightColor(UIColor *color) {
             %orig(CARD_GRAY);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
+}
+
+- (void)layoutSubviews {
+    %orig;
+    @try {
+        if (isDarkModeEnabled) {
+            applyDarkModeToView(self);
+        }
+    } @catch (NSException *exception) {}
 }
 
 %end
@@ -132,9 +211,7 @@ static BOOL isLightColor(UIColor *color) {
                 nav.scrollEdgeAppearance = appearance;
             }
         }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
+    } @catch (NSException *exception) {}
     return nav;
 }
 
@@ -160,9 +237,7 @@ static BOOL isLightColor(UIColor *color) {
                 tabBar.scrollEdgeAppearance = appearance;
             }
         }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
+    } @catch (NSException *exception) {}
     return tabBar;
 }
 
@@ -179,9 +254,7 @@ static BOOL isLightColor(UIColor *color) {
             %orig(TEXT_WHITE);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
@@ -192,16 +265,14 @@ static BOOL isLightColor(UIColor *color) {
             %orig([UIColor clearColor]);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
 %end
 
 // ============================================================
-//  HOOK: UITextView - Chat Input
+//  HOOK: UITextView - Dark Background
 // ============================================================
 %hook UITextView
 
@@ -213,9 +284,7 @@ static BOOL isLightColor(UIColor *color) {
             textView.textColor = TEXT_WHITE;
             textView.keyboardAppearance = UIKeyboardAppearanceDark;
         }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
+    } @catch (NSException *exception) {}
     return textView;
 }
 
@@ -225,16 +294,14 @@ static BOOL isLightColor(UIColor *color) {
             %orig(INPUT_GRAY);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
 %end
 
 // ============================================================
-//  HOOK: UITextField - Search Bar & Input
+//  HOOK: UITextField - Dark Background
 // ============================================================
 %hook UITextField
 
@@ -251,9 +318,7 @@ static BOOL isLightColor(UIColor *color) {
                     attributes:@{NSForegroundColorAttributeName: TEXT_GRAY}];
             }
         }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
+    } @catch (NSException *exception) {}
     return field;
 }
 
@@ -263,9 +328,7 @@ static BOOL isLightColor(UIColor *color) {
             %orig(INPUT_GRAY);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
@@ -277,9 +340,7 @@ static BOOL isLightColor(UIColor *color) {
                 initWithString:placeholder
                 attributes:@{NSForegroundColorAttributeName: TEXT_GRAY}];
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
 }
 
 %end
@@ -301,9 +362,7 @@ static BOOL isLightColor(UIColor *color) {
                 searchBar.searchTextField.textColor = TEXT_WHITE;
             }
         }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
+    } @catch (NSException *exception) {}
     return searchBar;
 }
 
@@ -313,41 +372,73 @@ static BOOL isLightColor(UIColor *color) {
             %orig(OLED_BLACK);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
 %end
 
 // ============================================================
-//  HOOK: UIView - Background Color
+//  HOOK: UICollectionView - Dark Mode (For Opening Moves)
 // ============================================================
-%hook UIView
+%hook UICollectionView
+
+- (instancetype)initWithFrame:(CGRect)frame collectionViewLayout:(UICollectionViewLayout *)layout {
+    UICollectionView *collection = %orig(frame, layout);
+    @try {
+        if (isDarkModeEnabled) {
+            collection.backgroundColor = OLED_BLACK;
+        }
+    } @catch (NSException *exception) {}
+    return collection;
+}
 
 - (void)setBackgroundColor:(UIColor *)color {
     @try {
-        // Skip certain view types
-        if ([self isKindOfClass:[UIImageView class]] ||
-            [self isKindOfClass:[UIButton class]] ||
-            [self isKindOfClass:[UISegmentedControl class]] ||
-            [self isKindOfClass:[UISlider class]] ||
-            [self isKindOfClass:[UISwitch class]]) {
-            %orig(color);
-            return;
-        }
-        
-        if (isDarkModeEnabled && 
-            isLightColor(color) && 
-            ![color isEqual:[UIColor clearColor]] &&
-            ![color isEqual:[UIColor whiteColor]]) {
+        if (isDarkModeEnabled && isLightColor(color)) {
             %orig(OLED_BLACK);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
+    %orig(color);
+}
+
+- (void)reloadData {
+    %orig;
+    @try {
+        if (isDarkModeEnabled) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                applyDarkModeToView(self);
+            });
+        }
+    } @catch (NSException *exception) {}
+}
+
+%end
+
+// ============================================================
+//  HOOK: UICollectionViewCell - Dark Cells
+// ============================================================
+%hook UICollectionViewCell
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    UICollectionViewCell *cell = %orig(frame);
+    @try {
+        if (isDarkModeEnabled) {
+            cell.backgroundColor = CARD_GRAY;
+            applyDarkModeToView(cell.contentView);
+        }
+    } @catch (NSException *exception) {}
+    return cell;
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    @try {
+        if (isDarkModeEnabled && isLightColor(color)) {
+            %orig(CARD_GRAY);
+            return;
+        }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
@@ -363,10 +454,11 @@ static BOOL isLightColor(UIColor *color) {
     @try {
         if (isDarkModeEnabled) {
             self.view.backgroundColor = OLED_BLACK;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                applyDarkModeToView(self.view);
+            });
         }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
+    } @catch (NSException *exception) {}
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -374,10 +466,11 @@ static BOOL isLightColor(UIColor *color) {
     @try {
         if (isDarkModeEnabled) {
             self.view.backgroundColor = OLED_BLACK;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                applyDarkModeToView(self.view);
+            });
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
 }
 
 %end
@@ -393,9 +486,7 @@ static BOOL isLightColor(UIColor *color) {
             %orig(OLED_BLACK);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
@@ -412,76 +503,7 @@ static BOOL isLightColor(UIColor *color) {
             %orig(OLED_BLACK);
             return;
         }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
-    %orig(color);
-}
-
-%end
-
-// ============================================================
-//  HOOK: UICollectionView - Dark Mode
-// ============================================================
-%hook UICollectionView
-
-- (instancetype)initWithFrame:(CGRect)frame collectionViewLayout:(UICollectionViewLayout *)layout {
-    UICollectionView *collection = %orig(frame, layout);
-    @try {
-        if (isDarkModeEnabled) {
-            collection.backgroundColor = OLED_BLACK;
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
-    return collection;
-}
-
-- (void)setBackgroundColor:(UIColor *)color {
-    @try {
-        if (isDarkModeEnabled && isLightColor(color)) {
-            %orig(OLED_BLACK);
-            return;
-        }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
-    %orig(color);
-}
-
-%end
-
-// ============================================================
-//  HOOK: UICollectionViewCell - Dark Cells
-// ============================================================
-%hook UICollectionViewCell
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    UICollectionViewCell *cell = %orig(frame);
-    @try {
-        if (isDarkModeEnabled) {
-            cell.backgroundColor = CARD_GRAY;
-            for (UIView *subview in cell.contentView.subviews) {
-                if ([subview isKindOfClass:[UILabel class]]) {
-                    ((UILabel *)subview).textColor = TEXT_WHITE;
-                }
-            }
-        }
-    } @catch (NSException *exception) {
-        NSLog(@"[BumbleDarkMode] Error: %@", exception);
-    }
-    return cell;
-}
-
-- (void)setBackgroundColor:(UIColor *)color {
-    @try {
-        if (isDarkModeEnabled && isLightColor(color)) {
-            %orig(CARD_GRAY);
-            return;
-        }
-    } @catch (NSException *exception) {
-        // Ignore
-    }
+    } @catch (NSException *exception) {}
     %orig(color);
 }
 
