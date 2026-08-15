@@ -25,34 +25,11 @@ jobs:
           export THEOS="$HOME/theos"
           make clean
           make
+          echo "=== Build complete ==="
+          ls -la .theos/obj/
 
-      - name: Debug - Show all files
-        run: |
-          echo "=== Current directory ==="
-          ls -la
-          echo ""
-          echo "=== .theos directory ==="
-          ls -la .theos/ 2>/dev/null || echo "No .theos directory"
-          echo ""
-          echo "=== .theos/obj directory ==="
-          ls -la .theos/obj/ 2>/dev/null || echo "No .theos/obj directory"
-          echo ""
-          echo "=== Find all .dylib files ==="
-          find . -name "*.dylib" -type f 2>/dev/null || echo "No dylib found"
-
-      - name: Upload all files (debug)
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-build
-          path: ./
-
-      - name: Upload dylib specifically
-        if: success()
+      - name: Upload dylib
         uses: actions/upload-artifact@v4
         with:
           name: BumbleDarkMode-dylib
-          path: |
-            .theos/obj/*.dylib
-            *.dylib
-            .theos/obj/debug/*.dylib
-          if-no-files-found: warn
+          path: .theos/obj/*.dylib
