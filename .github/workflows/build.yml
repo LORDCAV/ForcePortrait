@@ -26,8 +26,8 @@ jobs:
           make clean
           make
 
-      - name: Upload dylib
+      - name: Upload everything
         uses: actions/upload-artifact@v4
         with:
-          name: BumbleDarkMode-dylib
-          path: .theos/obj/*.dylib
+          name: build-output
+          path: ./
