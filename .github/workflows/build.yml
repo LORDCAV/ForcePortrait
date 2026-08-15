@@ -23,13 +23,49 @@ jobs:
       - name: Build BumbleDarkMode
         run: |
           export THEOS="$HOME/theos"
+          echo "=== Starting build ==="
           make clean
           make
-          echo "=== Build complete ==="
-          ls -la .theos/obj/
+          
+          echo ""
+          echo "=== BUILD COMPLETE - CHECKING FILES ==="
+          echo ""
+          
+          # Show everything in the project
+          echo "=== All files in current directory ==="
+          ls -la
+          echo ""
+          
+          echo "=== .theos directory ==="
+          ls -la .theos/ 2>/dev/null || echo "❌ .theos/ directory not found"
+          echo ""
+          
+          echo "=== .theos/obj directory ==="
+          ls -la .theos/obj/ 2>/dev/null || echo "❌ .theos/obj/ directory not found"
+          echo ""
+          
+          echo "=== Searching for ANY .dylib file ==="
+          find . -name "*.dylib" -type f 2>/dev/null || echo "❌ No .dylib found anywhere"
+          echo ""
+          
+          echo "=== Searching for ANY .deb file ==="
+          find . -name "*.deb" -type f 2>/dev/null || echo "❌ No .deb found"
+          echo ""
+          
+          echo "=== Full directory tree ==="
+          find . -type f | head -50
 
-      - name: Upload dylib
+      - name: Upload EVERYTHING as debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-full-build
+          path: ./
+
+      - name: Upload dylib if found
         uses: actions/upload-artifact@v4
         with:
           name: BumbleDarkMode-dylib
-          path: .theos/obj/*.dylib
+          path: |
+            .theos/obj/*.dylib
+            **/*.dylib
+          if-no-files-found: warn
