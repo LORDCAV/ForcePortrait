@@ -1,10 +1,11 @@
-TARGET := iphone:clang:latest:15.0
-ARCHS := arm64
+TARGET := iphone:clang:latest
+ARCHS = arm64 arm64e
+
+TWEAK_NAME = BumbleDarkMode
+BumbleDarkMode_FILES = Tweak.xm
+BumbleDarkMode_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
+BumbleDarkMode_LDFLAGS = -framework Foundation -framework UIKit
+BumbleDarkMode_FILTER = BumbleDarkMode.plist
 
 include $(THEOS)/makefiles/common.mk
-
-TWEAK_NAME = BumbleLock
-BumbleLock_FILES = Tweak.m
-BumbleLock_FRAMEWORKS = UIKit Foundation LocalAuthentication
-
-include $(THEOS)/makefiles/tweak.mk
+include $(THEOS_MAKE_PATH)/tweak.mk
