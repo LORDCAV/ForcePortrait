@@ -9,13 +9,10 @@
 #define DARK_GRAY       [UIColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:1.0]
 #define CARD_GRAY       [UIColor colorWithRed:0.15 green:0.15 blue:0.15 alpha:1.0]
 #define MEDIUM_GRAY     [UIColor colorWithRed:0.25 green:0.25 blue:0.25 alpha:1.0]
-#define LIGHT_GRAY      [UIColor colorWithRed:0.35 green:0.35 blue:0.35 alpha:1.0]
 #define TEXT_WHITE      [UIColor colorWithRed:0.95 green:0.95 blue:0.95 alpha:1.0]
 #define TEXT_LIGHT      [UIColor colorWithRed:0.8 green:0.8 blue:0.8 alpha:1.0]
 #define TEXT_GRAY       [UIColor colorWithRed:0.6 green:0.6 blue:0.6 alpha:1.0]
 #define ACCENT_YELLOW   [UIColor colorWithRed:1.0 green:0.8 blue:0.0 alpha:1.0]
-#define CHAT_BUBBLE_ME  [UIColor colorWithRed:0.2 green:0.35 blue:0.7 alpha:1.0]  // Blue for your messages
-#define CHAT_BUBBLE_OTHER [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0] // Dark gray for other messages
 
 static BOOL isDarkModeEnabled = YES;
 
@@ -31,28 +28,11 @@ static BOOL isLightColor(UIColor *color) {
 }
 
 // ============================================================
-//  MAIN ENTRY POINT
-// ============================================================
-%ctor {
-    NSLog(@"[BumbleDarkMode] ✅ Dark mode dylib loaded!");
-    
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
-        if (keyWindow) {
-            keyWindow.backgroundColor = OLED_BLACK;
-            // Apply dark mode to all windows
-            for (UIWindow *window in [UIApplication sharedApplication].windows) {
-                window.backgroundColor = OLED_BLACK;
-                [self applyDarkModeToView:window];
-            }
-        }
-    });
-}
-
-// ============================================================
-//  RECURSIVE DARK MODE APPLIER
+//  RECURSIVE DARK MODE APPLIER (C FUNCTION)
 // ============================================================
 static void applyDarkModeToView(UIView *view) {
+    if (!view) return;
+    
     // Skip certain view types
     if ([view isKindOfClass:[UIImageView class]]) {
         return;
@@ -70,11 +50,9 @@ static void applyDarkModeToView(UIView *view) {
     // Special handling for specific view types
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
-        // Keep white text
         if (label.textColor && isLightColor(label.textColor)) {
             label.textColor = TEXT_WHITE;
         }
-        // Make sure background is dark
         if (label.backgroundColor && isLightColor(label.backgroundColor)) {
             label.backgroundColor = [UIColor clearColor];
         }
@@ -96,7 +74,6 @@ static void applyDarkModeToView(UIView *view) {
     
     if ([view isKindOfClass:[UIButton class]]) {
         UIButton *button = (UIButton *)view;
-        // Keep button colors but ensure text is readable
         UIColor *titleColor = [button titleColorForState:UIControlStateNormal];
         if (titleColor && isLightColor(titleColor)) {
             [button setTitleColor:TEXT_WHITE forState:UIControlStateNormal];
@@ -107,6 +84,24 @@ static void applyDarkModeToView(UIView *view) {
     for (UIView *subview in view.subviews) {
         applyDarkModeToView(subview);
     }
+}
+
+// ============================================================
+//  MAIN ENTRY POINT
+// ============================================================
+%ctor {
+    NSLog(@"[BumbleDarkMode] ✅ Dark mode dylib loaded!");
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+        if (keyWindow) {
+            keyWindow.backgroundColor = OLED_BLACK;
+            for (UIWindow *window in [UIApplication sharedApplication].windows) {
+                window.backgroundColor = OLED_BLACK;
+                applyDarkModeToView(window);
+            }
+        }
+    });
 }
 
 // ============================================================
@@ -121,9 +116,6 @@ static void applyDarkModeToView(UIView *view) {
         table.separatorColor = MEDIUM_GRAY;
         table.sectionIndexColor = TEXT_WHITE;
         table.sectionIndexBackgroundColor = OLED_BLACK;
-        if (@available(iOS 13.0, *)) {
-            table.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
-        }
     }
     return table;
 }
@@ -138,7 +130,6 @@ static void applyDarkModeToView(UIView *view) {
 
 - (void)reloadData {
     %orig;
-    // Reapply dark mode after reload
     dispatch_async(dispatch_get_main_queue(), ^{
         for (UIView *subview in self.subviews) {
             applyDarkModeToView(subview);
@@ -149,7 +140,7 @@ static void applyDarkModeToView(UIView *view) {
 %end
 
 // ============================================================
-//  HOOK: UITableViewCell - Dark Cells with White Text
+//  HOOK: UITableViewCell - Dark Cells
 // ============================================================
 %hook UITableViewCell
 
@@ -163,7 +154,6 @@ static void applyDarkModeToView(UIView *view) {
         cell.selectedBackgroundView.backgroundColor = MEDIUM_GRAY;
         cell.contentView.backgroundColor = [UIColor clearColor];
         
-        // Update all labels in contentView
         for (UIView *subview in cell.contentView.subviews) {
             if ([subview isKindOfClass:[UILabel class]]) {
                 ((UILabel *)subview).textColor = TEXT_WHITE;
@@ -183,13 +173,6 @@ static void applyDarkModeToView(UIView *view) {
         return;
     }
     %orig(color);
-}
-
-- (void)setTextLabel:(UILabel *)textLabel {
-    if (isDarkModeEnabled) {
-        textLabel.textColor = TEXT_WHITE;
-    }
-    %orig(textLabel);
 }
 
 %end
@@ -354,9 +337,11 @@ static void applyDarkModeToView(UIView *view) {
         field.backgroundColor = DARK_GRAY;
         field.textColor = TEXT_WHITE;
         field.keyboardAppearance = UIKeyboardAppearanceDark;
-        field.attributedPlaceholder = [[NSAttributedString alloc] 
-            initWithString:field.placeholder ?: @""
-            attributes:@{NSForegroundColorAttributeName: TEXT_GRAY}];
+        if (field.placeholder) {
+            field.attributedPlaceholder = [[NSAttributedString alloc] 
+                initWithString:field.placeholder
+                attributes:@{NSForegroundColorAttributeName: TEXT_GRAY}];
+        }
     }
     return field;
 }
@@ -377,7 +362,6 @@ static void applyDarkModeToView(UIView *view) {
 %hook UIView
 
 - (void)setBackgroundColor:(UIColor *)color {
-    // Skip certain view types
     if ([self isKindOfClass:[UILabel class]] ||
         [self isKindOfClass:[UITextField class]] ||
         [self isKindOfClass:[UITextView class]] ||
@@ -393,6 +377,23 @@ static void applyDarkModeToView(UIView *view) {
         return;
     }
     %orig(color);
+}
+
+- (void)didAddSubview:(UIView *)subview {
+    %orig(subview);
+    if (isDarkModeEnabled) {
+        if ([subview respondsToSelector:@selector(setBackgroundColor:)]) {
+            UIColor *bgColor = subview.backgroundColor;
+            if (bgColor && isLightColor(bgColor) && 
+                ![bgColor isEqual:[UIColor clearColor]] &&
+                ![bgColor isEqual:[UIColor whiteColor]]) {
+                subview.backgroundColor = CARD_GRAY;
+            }
+        }
+        for (UIView *sub in subview.subviews) {
+            applyDarkModeToView(sub);
+        }
+    }
 }
 
 %end
@@ -434,33 +435,6 @@ static void applyDarkModeToView(UIView *view) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             applyDarkModeToView(self.view);
         });
-    }
-}
-
-%end
-
-// ============================================================
-//  HOOK: Chat Bubble Detection
-// ============================================================
-%hook UIView
-
-- (void)didAddSubview:(UIView *)subview {
-    %orig(subview);
-    if (isDarkModeEnabled) {
-        // Check if this looks like a chat bubble (custom view with dark background)
-        if ([subview respondsToSelector:@selector(setBackgroundColor:)]) {
-            UIColor *bgColor = subview.backgroundColor;
-            if (bgColor && isLightColor(bgColor) && 
-                ![bgColor isEqual:[UIColor clearColor]] &&
-                ![bgColor isEqual:[UIColor whiteColor]]) {
-                // Might be a chat bubble - keep it but ensure text is readable
-                subview.backgroundColor = CARD_GRAY;
-            }
-        }
-        // Apply dark mode to all subviews
-        for (UIView *sub in subview.subviews) {
-            applyDarkModeToView(sub);
-        }
     }
 }
 
