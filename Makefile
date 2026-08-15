@@ -8,4 +8,4 @@ BumbleDarkMode_LDFLAGS = -framework Foundation -framework UIKit
 BumbleDarkMode_FILTER = BumbleDarkMode.plist
 
 include $(THEOS)/makefiles/common.mk
-include $(THEOS_MAKE_PATH)/tweak.mk
+include $(THEOS_MAKE_PATH)/tweak.mk 
