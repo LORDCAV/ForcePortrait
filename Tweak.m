@@ -1,118 +1,473 @@
+#import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-@interface BumbleUniversalDarkEngine : NSObject
-+ (void)applyThemeToView:(UIView *)view;
+// ============================================================
+//  COLOR DEFINITIONS (OLED Dark Theme)
+// ============================================================
+#define OLED_BLACK      [UIColor colorWithRed:0.0 green:0.0 blue:0.0 alpha:1.0]
+#define DARK_GRAY       [UIColor colorWithRed:0.12 green:0.12 blue:0.12 alpha:1.0]
+#define MEDIUM_GRAY     [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0]
+#define LIGHT_GRAY      [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0]
+#define TEXT_WHITE      [UIColor colorWithRed:0.95 green:0.95 blue:0.95 alpha:1.0]
+#define TEXT_LIGHT      [UIColor colorWithRed:0.8 green:0.8 blue:0.8 alpha:1.0]
+#define ACCENT_YELLOW   [UIColor colorWithRed:1.0 green:0.8 blue:0.0 alpha:1.0] // Bumble's yellow
+#define ACCENT_BLUE     [UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1.0]
+
+// ============================================================
+//  HELPER: Safe color replacement
+// ============================================================
+static BOOL isDarkModeEnabled = YES; // Toggle this if you want to add a gesture
+
+@interface BumbleDarkMode : NSObject
++ (void)applyDarkTheme;
++ (void)toggleDarkMode;
++ (void)showAlert:(NSString *)message;
 @end
 
-@implementation BumbleUniversalDarkEngine
+@implementation BumbleDarkMode
 
-+ (void)applyThemeToView:(UIView *)view {
-    if (!view) return;
-
-    // 1. GLOBAL BACKGROUND CONVERSION PANEL
-    if (view.backgroundColor) {
-        NSString *className = NSStringFromClass([view class]);
-        if ([className containsString:@"Grid"] || [className containsString:@"List"] || [className containsString:@"Collection"] || [className containsString:@"Scroll"]) {
-            view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:1.0];
-        } else {
-            CGFloat r = 0, g = 0, b = 0, a = 0;
-            [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
-            
-            // Force all bright layout grids, rows, and banners straight to dark grey/black
-            if (r > 0.82 && g > 0.82 && b > 0.82) {
-                view.backgroundColor = [UIColor colorWithRed:15.0/255.0 green:15.0/255.0 blue:15.0/255.0 alpha:a];
-            }
++ (void)applyDarkTheme {
+    // Apply to the main window
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+        if (keyWindow) {
+            keyWindow.backgroundColor = OLED_BLACK;
         }
-    }
-
-    // 2. UNIVERSAL OVERLAY DETECTION (Fixes headers, navbars, and custom banner cards)
-    NSString *className = NSStringFromClass([view class]);
-    if ([className containsString:@"Header"] || [className containsString:@"Banner"] || [className containsString:@"Bar"] || [className containsString:@"Card"]) {
-        CGFloat r = 0, g = 0, b = 0, a = 0;
-        if (view.backgroundColor) {
-            [view.backgroundColor getRed:&r green:&g blue:&b alpha:&a];
-            if (r > 0.8 || g > 0.8 || b > 0.8) {
-                view.backgroundColor = [UIColor colorWithRed:22.0/255.0 green:22.0/255.0 blue:22.0/255.0 alpha:1.0];
-            }
-        }
-    }
-
-    // 3. PRECISION LABEL RE-COLORING
-    if ([view isKindOfClass:[UILabel class]]) {
-        UILabel *label = (UILabel *)view;
         
-        if (label.attributedText && label.attributedText.length > 0) {
-            NSMutableAttributedString *mutableString = [label.attributedText mutableCopy];
-            [mutableString addAttribute:NSForegroundColorAttributeName value:[UIColor whiteColor] range:NSMakeRange(0, mutableString.length)];
-            label.attributedText = mutableString;
-        } else if (label.textColor) {
-            CGFloat r = 0, g = 0, b = 0, a = 0;
-            [label.textColor getRed:&r green:&g blue:&b alpha:&a];
-            
-            if (r < 0.85 && g < 0.85 && b < 0.85) {
-                if (!(r > 0.6 && g > 0.5 && b < 0.2)) { // Preserve yellow branding strings
-                    label.textColor = [UIColor whiteColor];
-                }
+        // Force all views to update
+        for (UIWindow *window in [UIApplication sharedApplication].windows) {
+            window.backgroundColor = OLED_BLACK;
+            [self recursivelyApplyDarkMode:window];
+        }
+    });
+}
+
++ (void)recursivelyApplyDarkMode:(UIView *)view {
+    // Skip certain views to keep them readable
+    if ([view isKindOfClass:NSClassFromString(@"UITextField")] ||
+        [view isKindOfClass:NSClassFromString(@"UITextView")] ||
+        [view isKindOfClass:NSClassFromString(@"UILabel")]) {
+        return;
+    }
+    
+    // Change background colors to dark
+    if ([view respondsToSelector:@selector(setBackgroundColor:)]) {
+        UIColor *currentColor = view.backgroundColor;
+        
+        // Don't override images or important UI elements
+        if ([view isKindOfClass:[UIImageView class]]) {
+            return;
+        }
+        
+        // Replace white/light backgrounds with dark
+        if (currentColor) {
+            if ([self isLightColor:currentColor]) {
+                view.backgroundColor = DARK_GRAY;
             }
         }
+        
+        // Special handling for specific view types
+        if ([view isKindOfClass:[UINavigationBar class]]) {
+            view.backgroundColor = OLED_BLACK;
+        }
+        
+        if ([view isKindOfClass:[UITabBar class]]) {
+            view.backgroundColor = OLED_BLACK;
+        }
+        
+        if ([view isKindOfClass:[UITableView class]]) {
+            view.backgroundColor = OLED_BLACK;
+            UITableView *tableView = (UITableView *)view;
+            tableView.separatorColor = MEDIUM_GRAY;
+        }
+        
+        if ([view isKindOfClass:[UICollectionView class]]) {
+            view.backgroundColor = OLED_BLACK;
+        }
+        
+        if ([view isKindOfClass:[UIScrollView class]]) {
+            view.backgroundColor = OLED_BLACK;
+        }
     }
-
-    // 4. CHAT COMPONENT TEXT VIEWS & INPUT BOXES
-    if ([view isKindOfClass:[UITextView class]]) {
-        UITextView *tv = (UITextView *)view;
-        tv.textColor = [UIColor whiteColor];
-    }
-    if ([view isKindOfClass:[UITextField class]]) {
-        UITextField *tf = (UITextField *)view;
-        tf.textColor = [UIColor whiteColor];
-        tf.backgroundColor = [UIColor colorWithRed:30.0/255.0 green:30.0/255.0 blue:30.0/255.0 alpha:1.0];
-    }
-
-    // Safely look into subviews
+    
+    // Recurse through subviews
     for (UIView *subview in view.subviews) {
-        [BumbleUniversalDarkEngine applyThemeToView:subview];
+        [self recursivelyApplyDarkMode:subview];
     }
 }
+
++ (BOOL)isLightColor:(UIColor *)color {
+    CGFloat red, green, blue, alpha;
+    [color getRed:&red green:&green blue:&blue alpha:&alpha];
+    CGFloat brightness = (red + green + blue) / 3.0;
+    return brightness > 0.5;
+}
+
++ (void)toggleDarkMode {
+    isDarkModeEnabled = !isDarkModeEnabled;
+    [self showAlert:isDarkModeEnabled ? @"🌙 Dark Mode ON" : @"☀️ Light Mode ON"];
+    [self applyDarkTheme];
+}
+
++ (void)showAlert:(NSString *)message {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+        if (!keyWindow) return;
+        
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(0, 80, keyWindow.bounds.size.width, 44)];
+        label.text = message;
+        label.textAlignment = NSTextAlignmentCenter;
+        label.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.8];
+        label.textColor = [UIColor whiteColor];
+        label.font = [UIFont boldSystemFontOfSize:16];
+        label.alpha = 0.0;
+        [keyWindow addSubview:label];
+        
+        [UIView animateWithDuration:0.3 animations:^{
+            label.alpha = 1.0;
+        } completion:^(BOOL finished) {
+            [UIView animateWithDuration:0.3 delay:1.5 options:UIViewAnimationOptionCurveEaseOut animations:^{
+                label.alpha = 0.0;
+            } completion:^(BOOL finished) {
+                [label removeFromSuperview];
+            }];
+        }];
+    });
+}
+
 @end
 
-// ============================================================================
-// CONTINUOUS GLOBAL CANVAS HEARTBEAT HOOKS
-// ============================================================================
-__attribute__((constructor))
-static void init(void) {
-    @autoreleasepool {
-        // Core Layout Heartbeat Hook (Triggers every time the app updates, flips tabs, or redraws)
-        Class viewClass = [UIView class];
-        SEL layoutSelector = @selector(layoutSubviews);
-        __block IMP originalLayoutSubviews = NULL;
-        
-        id block = ^(void *self) {
-            if (originalLayoutSubviews) {
-                ((void (*)(void *))originalLayoutSubviews)(self);
-            }
-            UIView *currentView = (__bridge UIView *)self;
-            // Instantly catch any tab switches, collection refreshes, or server changes on the fly
-            [BumbleUniversalDarkEngine applyThemeToView:currentView];
-        };
-        
-        IMP newLayoutSubviews = imp_implementationWithBlock(block);
-        Method origMethod = class_getInstanceMethod(viewClass, layoutSelector);
-        originalLayoutSubviews = method_setImplementation(origMethod, newLayoutSubviews);
+// ============================================================
+//  HOOK 1: UITableView - Dark Mode for Lists
+// ============================================================
+%hook UITableView
 
-        // Lock global dark appearance layouts on cold boot
-        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
-                                                          object:nil
-                                                           queue:[NSOperationQueue mainQueue]
-                                                      usingBlock:^(NSNotification * _Nonnull note) {
-            if (@available(iOS 13.0, *)) {
-                for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                    if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
-                        UIWindowScene *windowScene = (UIWindowScene *)scene;
-                        windowScene.keyWindow.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-                    }
-                }
-            }
-        }];
+- (instancetype)initWithFrame:(CGRect)frame style:(UITableViewStyle)style {
+    UITableView *table = %orig(frame, style);
+    if (isDarkModeEnabled) {
+        table.backgroundColor = OLED_BLACK;
+        table.separatorColor = MEDIUM_GRAY;
+        table.sectionIndexColor = TEXT_WHITE;
+        table.sectionIndexBackgroundColor = OLED_BLACK;
+        if (@available(iOS 13.0, *)) {
+            table.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
+        }
     }
+    return table;
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        // Intercept and replace light colors
+        if ([BumbleDarkMode isLightColor:color]) {
+            %orig(OLED_BLACK);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+%end
+
+// ============================================================
+//  HOOK 2: UITableViewCell - Dark Cells with White Text
+// ============================================================
+%hook UITableViewCell
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+    UITableViewCell *cell = %orig(style, reuseIdentifier);
+    if (isDarkModeEnabled) {
+        cell.backgroundColor = DARK_GRAY;
+        cell.textLabel.textColor = TEXT_WHITE;
+        cell.detailTextLabel.textColor = TEXT_LIGHT;
+        cell.selectedBackgroundView = [[UIView alloc] init];
+        cell.selectedBackgroundView.backgroundColor = MEDIUM_GRAY;
+        
+        // Also handle image views
+        for (UIView *subview in cell.contentView.subviews) {
+            if ([subview isKindOfClass:[UILabel class]]) {
+                ((UILabel *)subview).textColor = TEXT_WHITE;
+            }
+        }
+    }
+    return cell;
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color]) {
+            %orig(DARK_GRAY);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+- (void)setTextLabel:(UILabel *)textLabel {
+    if (isDarkModeEnabled) {
+        textLabel.textColor = TEXT_WHITE;
+    }
+    %orig(textLabel);
+}
+
+%end
+
+// ============================================================
+//  HOOK 3: UICollectionView - Grid Views
+// ============================================================
+%hook UICollectionView
+
+- (instancetype)initWithFrame:(CGRect)frame collectionViewLayout:(UICollectionViewLayout *)layout {
+    UICollectionView *collection = %orig(frame, layout);
+    if (isDarkModeEnabled) {
+        collection.backgroundColor = OLED_BLACK;
+    }
+    return collection;
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color]) {
+            %orig(OLED_BLACK);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+%end
+
+// ============================================================
+//  HOOK 4: UICollectionViewCell - Dark Cells
+// ============================================================
+%hook UICollectionViewCell
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    UICollectionViewCell *cell = %orig(frame);
+    if (isDarkModeEnabled) {
+        cell.backgroundColor = DARK_GRAY;
+        for (UIView *subview in cell.contentView.subviews) {
+            if ([subview isKindOfClass:[UILabel class]]) {
+                ((UILabel *)subview).textColor = TEXT_WHITE;
+            }
+        }
+    }
+    return cell;
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color]) {
+            %orig(DARK_GRAY);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+%end
+
+// ============================================================
+//  HOOK 5: UINavigationBar - Dark Mode
+// ============================================================
+%hook UINavigationBar
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    UINavigationBar *nav = %orig(frame);
+    if (isDarkModeEnabled) {
+        nav.barTintColor = OLED_BLACK;
+        nav.backgroundColor = OLED_BLACK;
+        nav.tintColor = ACCENT_YELLOW;
+        nav.titleTextAttributes = @{NSForegroundColorAttributeName: TEXT_WHITE};
+        if (@available(iOS 13.0, *)) {
+            UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
+            appearance.backgroundColor = OLED_BLACK;
+            appearance.titleTextAttributes = @{NSForegroundColorAttributeName: TEXT_WHITE};
+            nav.standardAppearance = appearance;
+            nav.scrollEdgeAppearance = appearance;
+        }
+    }
+    return nav;
+}
+
+- (void)setBarTintColor:(UIColor *)barTintColor {
+    if (isDarkModeEnabled) {
+        %orig(OLED_BLACK);
+        return;
+    }
+    %orig(barTintColor);
+}
+
+%end
+
+// ============================================================
+//  HOOK 6: UITabBar - Dark Mode
+// ============================================================
+%hook UITabBar
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    UITabBar *tabBar = %orig(frame);
+    if (isDarkModeEnabled) {
+        tabBar.barTintColor = OLED_BLACK;
+        tabBar.backgroundColor = OLED_BLACK;
+        tabBar.tintColor = ACCENT_YELLOW;
+        tabBar.unselectedItemTintColor = TEXT_LIGHT;
+        if (@available(iOS 13.0, *)) {
+            UITabBarAppearance *appearance = [[UITabBarAppearance alloc] init];
+            appearance.backgroundColor = OLED_BLACK;
+            tabBar.standardAppearance = appearance;
+            tabBar.scrollEdgeAppearance = appearance;
+        }
+    }
+    return tabBar;
+}
+
+- (void)setBarTintColor:(UIColor *)barTintColor {
+    if (isDarkModeEnabled) {
+        %orig(OLED_BLACK);
+        return;
+    }
+    %orig(barTintColor);
+}
+
+%end
+
+// ============================================================
+//  HOOK 7: UILabel - Force White Text
+// ============================================================
+%hook UILabel
+
+- (void)setTextColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        // Keep system colors for certain elements (like error messages)
+        if ([color isEqual:[UIColor redColor]]) {
+            %orig(color);
+            return;
+        }
+        // Force white text for readability
+        if ([BumbleDarkMode isLightColor:color] || [color isEqual:[UIColor blackColor]]) {
+            %orig(TEXT_WHITE);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color]) {
+            // Don't override labels with transparent backgrounds
+            if (![color isEqual:[UIColor clearColor]]) {
+                %orig([UIColor clearColor]);
+                return;
+            }
+        }
+    }
+    %orig(color);
+}
+
+%end
+
+// ============================================================
+//  HOOK 8: UIButton - Dark Mode
+// ============================================================
+%hook UIButton
+
+- (void)setTitleColor:(UIColor *)color forState:(UIControlState)state {
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color] || [color isEqual:[UIColor blackColor]]) {
+            %orig(TEXT_WHITE, state);
+            return;
+        }
+    }
+    %orig(color, state);
+}
+
+%end
+
+// ============================================================
+//  HOOK 9: UITextField - Dark Mode
+// ============================================================
+%hook UITextField
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    UITextField *field = %orig(frame);
+    if (isDarkModeEnabled) {
+        field.backgroundColor = DARK_GRAY;
+        field.textColor = TEXT_WHITE;
+        field.keyboardAppearance = UIKeyboardAppearanceDark;
+    }
+    return field;
+}
+
+- (void)setBackgroundColor:(UIColor *)color {
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color]) {
+            %orig(DARK_GRAY);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+%end
+
+// ============================================================
+//  HOOK 10: UIView - Catch-All for Dark Mode
+// ============================================================
+%hook UIView
+
+- (void)setBackgroundColor:(UIColor *)color {
+    // Skip certain view types
+    if ([self isKindOfClass:[UILabel class]] ||
+        [self isKindOfClass:[UITextField class]] ||
+        [self isKindOfClass:[UITextView class]] ||
+        [self isKindOfClass:[UIImageView class]]) {
+        %orig(color);
+        return;
+    }
+    
+    // Skip views with images
+    if ([self isKindOfClass:[UIButton class]] && [self respondsToSelector:@selector(imageView)]) {
+        %orig(color);
+        return;
+    }
+    
+    if (isDarkModeEnabled) {
+        if ([BumbleDarkMode isLightColor:color] && 
+            ![color isEqual:[UIColor clearColor]] &&
+            ![color isEqual:[UIColor whiteColor]]) {
+            %orig(OLED_BLACK);
+            return;
+        }
+    }
+    %orig(color);
+}
+
+%end
+
+// ============================================================
+//  MAIN ENTRY: Initialize Dark Mode + Toggle Gesture
+// ============================================================
+%ctor {
+    NSLog(@"[BumbleDarkMode] ✅ Dark mode dylib loaded!");
+    
+    // Apply dark mode
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [BumbleDarkMode applyDarkTheme];
+        [BumbleDarkMode showAlert:@"🌙 OLED Dark Mode ON"];
+    });
+    
+    // Add toggle gesture: Triple tap with 2 fingers
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+        if (!keyWindow) return;
+        
+        UITapGestureRecognizer *tripleTap = [[UITapGestureRecognizer alloc] initWithTarget:[BumbleDarkMode class] 
+                                                                                   action:@selector(toggleDarkMode)];
+        tripleTap.numberOfTapsRequired = 3;
+        tripleTap.numberOfTouchesRequired = 2; // Two fingers, triple tap
+        [keyWindow addGestureRecognizer:tripleTap];
+    });
 }
