@@ -24,7 +24,7 @@ jobs:
         run: |
           export THEOS="$HOME/theos"
           make clean
-          make          # <- Changed: removed "package FINALPACKAGE=1"
+          make
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
