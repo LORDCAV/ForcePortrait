@@ -1,0 +1,9 @@
+Package: com.yourname.bumbledarkmode
+Name: BumbleDarkMode
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: OLED Dark Mode for Bumble
+Maintainer: Your Name <youremail@example.com>
+Author: Your Name <youremail@example.com>
+Section: Tweaks
+Depends: firmware (>= 16.0)
